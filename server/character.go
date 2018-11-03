@@ -81,6 +81,10 @@ func bagSlotDetails(slot int, item sworld.Item) *BagSlotDetails {
 		details.Stone = &StoneDetails{
 			Level:    stoneItem.Level,
 			Duration: stoneItem.Duration.String(),
+			Zone: ZoneDetails{
+				ID:   stoneItem.Zone.ID,
+				Name: stoneItem.Zone.Name,
+			},
 		}
 		return details
 	}

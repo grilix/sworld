@@ -11,7 +11,7 @@ func TestRandomItemEvent(t *testing.T) {
 	seed := rand.New(source)
 
 	portal := Portal{}
-	event := portal.RandomItemEvent(seed)
+	event := portal.randomItemEvent(seed)
 	if event.Item == nil {
 		t.Fatal("Expected event to be Item")
 	}

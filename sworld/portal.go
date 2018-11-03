@@ -55,10 +55,35 @@ type PortalEvent struct {
 	Gold int
 }
 
-// RandomItemEvent creates an event with a random item
-func (p Portal) RandomItemEvent(seed *rand.Rand) PortalEvent {
+func (p Portal) randomPortalStone() *PortalStone {
+	maxDuration := int(p.PortalStone.Duration.Seconds() * 1.5)
+	minDuration := int(p.PortalStone.Duration.Seconds() * 0.8)
+	if maxDuration < 10 {
+		maxDuration = 10
+	}
+	if minDuration < 10 {
+		minDuration = 10
+	}
+	diff := maxDuration - minDuration
+	var seconds int
+	if diff > 2 {
+		seconds = rand.Intn(maxDuration-minDuration) + minDuration
+	} else {
+		seconds = 10
+	}
+	level := rand.Intn(p.PortalStone.Level + 1)
+
+	return &PortalStone{
+		Level:    level,
+		Duration: time.Duration(seconds) * time.Second,
+		Zone:     p.PortalStone.Zone,
+	}
+}
+
+func (p Portal) randomItemEvent(seed *rand.Rand) PortalEvent {
 	// TODO: Random item
-	stone := &PortalStone{}
+	stone := p.randomPortalStone()
+
 	log.Printf("   -> Item spawn %T%v", stone, stone)
 	return PortalEvent{Item: stone}
 }
@@ -77,7 +102,7 @@ func (p Portal) RandomEvent(seed *rand.Rand) PortalEvent {
 		//c.enemies++
 		log.Printf("   -> Enemy spawn at %s", p.ID)
 	case 2: // Item
-		return p.RandomItemEvent(seed)
+		return p.randomItemEvent(seed)
 	}
 
 	return PortalEvent{}
