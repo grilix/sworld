@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,7 +10,6 @@ import (
 
 	klog "github.com/go-kit/kit/log"
 	"github.com/grilix/sworld/server"
-	"github.com/grilix/sworld/sworld"
 	"github.com/grilix/sworld/sworldservice"
 )
 
@@ -28,11 +26,9 @@ func main() {
 		logger = klog.With(logger, "caller", klog.DefaultCaller)
 	}
 
-	world := sworld.NewWorld()
-
 	var service sworldservice.Service
 	{
-		service = sworldservice.NewService(world)
+		service = sworldservice.NewService()
 	}
 
 	var h http.Handler

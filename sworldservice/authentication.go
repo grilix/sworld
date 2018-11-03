@@ -4,6 +4,7 @@ import (
 	"github.com/grilix/sworld/sworld"
 )
 
+// Credentials represent the user credentials for signing in
 type Credentials struct {
 	Username string
 	Password string

@@ -8,13 +8,20 @@ func (s *swService) createCharacter(user *sUser) *sworld.Character {
 	health := 10000
 
 	character := &sworld.Character{
+		ID:        sworld.RandomID(16),
 		Level:     1,
 		Health:    health,
 		MaxHealth: health,
 		Gold:      0,
 		Exploring: false,
-		ID:        sworld.RandomID(16),
+		User:      user.u,
+		Bags: []sworld.Bag{
+			sworld.NewStandardBag(10),
+		},
 	}
 	user.u.Character = character
+
+	s.characters[character.ID] = character
+
 	return character
 }

@@ -3,6 +3,7 @@ package sworldservice
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/grilix/sworld/sworld"
@@ -13,25 +14,18 @@ var (
 	ErrNotImplemented = errors.New("This service call is not implemented")
 	// ErrPortalStoneNotFound means the stone does not exist
 	ErrPortalStoneNotFound = errors.New("The stone does not exist")
+	// ErrCharacterNotFound is when the character cannot be found
+	ErrCharacterNotFound = errors.New("That character was not found")
 )
 
 type sCharacter struct {
-	c        *sworld.Character
-	u        *sUser
-	tExplore *time.Ticker
-
-	// TODO: inventory
-	gold,
-	enemies,
-	items,
-	stones,
-	materials int
+	c *sworld.Character
+	u *sUser
 }
 
 type sPortal struct {
-	p      sworld.Portal
+	p      *sworld.Portal
 	c      *sCharacter
-	run    chan bool
 	tClose *time.Timer
 }
 
@@ -43,25 +37,69 @@ type sUser struct {
 type Service interface {
 	Authenticate(ctx context.Context, c Credentials) (*sworld.User, error)
 	FindUser(id string) *sworld.User
+
+	ListCharacters(user *sworld.User) ([]*sworld.Character, error)
+	ViewCharacterInventory(characterID string) ([]sworld.Bag, error)
+
 	OpenPortal(user *sworld.User, stoneID string) (*sworld.Portal, error)
 	ExplorePortal(user *sworld.User, portalID, characterID string) error
+	ViewPortal(portalID string) (*sworld.Portal, error)
+	ListPortals(user *sworld.User) ([]*sworld.Portal, error)
 }
 
 type swService struct {
 	users                 map[string]*sUser
 	portals               map[string]*sPortal
-	world                 *sworld.World
 	defaultPortalDuration time.Duration
+	characters            map[string]*sworld.Character
 }
 
 // NewService creates the service
-func NewService(world *sworld.World) Service {
+func NewService() Service {
 	return &swService{
-		world:                 world,
-		users:                 make(map[string]*sUser),
-		portals:               make(map[string]*sPortal),
-		defaultPortalDuration: time.Second * 5, // TODO: set default duration
+		users:      make(map[string]*sUser),
+		portals:    make(map[string]*sPortal),
+		characters: make(map[string]*sworld.Character),
+		// TODO: this should be on settings
+		defaultPortalDuration: time.Second * 10,
 	}
+}
+
+func (s *swService) ViewCharacterInventory(characterID string) ([]sworld.Bag, error) {
+	character := s.characters[characterID]
+	if character == nil {
+		return nil, ErrCharacterNotFound
+	}
+
+	return character.Bags, nil
+}
+
+func (s *swService) ListCharacters(user *sworld.User) ([]*sworld.Character, error) {
+	characters := make([]*sworld.Character, 0, 1)
+
+	// TODO: Users currently have only one character
+	characters = append(characters, user.Character)
+
+	return characters, nil
+}
+
+func (s *swService) ViewPortal(portalID string) (*sworld.Portal, error) {
+	portal := s.portals[portalID]
+	if portal == nil {
+		return nil, ErrPortalNotFound
+	}
+
+	return portal.p, nil
+}
+
+func (s *swService) ListPortals(user *sworld.User) ([]*sworld.Portal, error) {
+	portals := make([]*sworld.Portal, 0, len(s.portals))
+
+	for _, portal := range s.portals {
+		portals = append(portals, portal.p)
+	}
+
+	return portals, nil
 }
 
 func (s *swService) FindUser(id string) *sworld.User {
@@ -101,14 +139,13 @@ func (s *swService) ExplorePortal(user *sworld.User, portalID, characterID strin
 		return ErrCharacterBusy
 	}
 
-	user.Character.Exploring = true
-	sportal.p.Character = user.Character
+	s.handleExplore(sportal.p, user.Character)
+
+	// TODO: What's this?
 	sportal.c = &sCharacter{
 		c: user.Character,
 		u: s.users[user.ID],
 	}
-
-	go s.portalExploreHandler(sportal, sportal.c)
 
 	return nil
 }
@@ -118,22 +155,25 @@ func (s *swService) OpenPortal(user *sworld.User, stoneID string) (*sworld.Porta
 		return nil, ErrPortalStoneNotFound
 	}
 
-	// TODO: fetch user stones
+	// TODO: if a stoneID is given, use that stone from the user inventory
+	// Also, we could receive the coordinates of the item (bag, slot), instead of the ID
+	// or we can just search everywhere until we find that stone
 	stone := s.defaultStone(user)
 
+	portal, err := sworld.OpenPortal(user, stone, func(portal *sworld.Portal) {
+		log.Printf("Portal closed: %s\n", portal.ID)
+		delete(s.portals, portal.ID)
+	})
+	if err != nil {
+		return portal, err
+	}
+	log.Printf("Portal open: %s\n", portal.ID)
+
 	sportal := &sPortal{
-		p: sworld.Portal{
-			ID:          sworld.RandomID(16),
-			PortalStone: stone,
-			IsOpen:      true,
-			User:        user,
-		},
-		tClose: time.NewTimer(stone.Duration),
+		p: portal,
 	}
 
 	s.portals[sportal.p.ID] = sportal
 
-	go s.portalHandler(sportal)
-
-	return &sportal.p, nil
+	return sportal.p, nil
 }

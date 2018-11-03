@@ -1,5 +1,15 @@
 package sworld
 
+import (
+	"log"
+	"time"
+)
+
+// Delete item:
+//     a[i] = a[len(a)-1]
+//     a[len(a)-1] = nil
+//     a = a[:len(a)-1]
+//
 // Killing enemy xp:
 // xp := int64(
 //     math.Round(
@@ -10,13 +20,68 @@ package sworld
 // Next lvl xp:
 // return int64(math.Round((4 * math.Pow(float64(c.Level), 3)) / 5))
 
+// Character represents a user character
 type Character struct {
-	ID        string
-	Health    int
-	MaxHealth int
-	Gold      int
-	Exploring bool
-	Level     int
+	ID              string
+	Health          int
+	MaxHealth       int
+	Gold            int
+	Exploring       bool
+	Level           int
+	ExploreInterval time.Duration
+	User            *User
+	Bags            []Bag
 
-	experience int64
+	// TODO: this is so we can debug things
+	enemies int
+}
+
+// TODO: This could be exported
+func (c *Character) pickupItem(item Item) (int, int, error) {
+	for id, bag := range c.Bags {
+		slot, err := bag.StoreItem(item)
+		if err != nil {
+			continue
+		}
+		return id, slot, nil
+	}
+	return 0, 0, ErrInventoryFull
+}
+
+// ReturnToTown makes the character leave the "exploring" state
+func (c *Character) ReturnToTown(portal *Portal) {
+	c.Exploring = false
+
+	// FIXME: This is just for debugging
+	for bagID, bag := range c.Bags {
+		items := bag.Items()
+
+		for slot := range items {
+			if items[slot] != nil {
+				log.Printf(" -> Bag %d slot %d: %T%v", bagID, slot, items[slot], items[slot])
+			}
+		}
+	}
+
+	log.Printf(" -> Character %s left portal %s", c.ID, portal.ID)
+	log.Printf("   -> Gold: %d", c.Gold)
+	log.Printf("   -> Enemies: %d", c.enemies)
+
+	u := c.User
+	u.Gold += c.Gold
+
+	log.Printf(" -> Current stats for user:")
+	log.Printf("   -> Gold: %d", u.Gold)
+}
+
+// EncounterEvent lets a character handle an event
+func (c *Character) EncounterEvent(event PortalEvent) error {
+	if event.Item != nil {
+		c.pickupItem(event.Item)
+	}
+	if event.Gold > 0 {
+		c.Gold += event.Gold
+	}
+
+	return nil
 }

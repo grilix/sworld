@@ -20,12 +20,9 @@ import (
 	"github.com/grilix/sworld/sworldservice"
 )
 
-// TODO: check which ones are being used
 var (
-	ErrBadRouting = errors.New(
-		"inconsistent mapping between route and handler (programmer error)",
-	)
-	ErrNotSignedIn = errors.New("Not signed in")
+	// ErrBadRouting is when a handler receives the wrong information from a route
+	ErrBadRouting = errors.New("inconsistent mapping between route and handler")
 )
 
 type errorer interface {
@@ -44,13 +41,20 @@ func MakeHTTPServer(s sworldservice.Service, logger klog.Logger) http.Handler {
 	}
 
 	r.Methods("POST").Path("/api/v1/auth").Handler(AuthenticateHTTPServer(e, options))
-	r.Methods("GET").Path("/api/v1/character").Handler(CharacterDetailsHTTPServer(e, options))
+
+	r.Methods("GET").Path("/api/v1/characters").Handler(ListCharactersHTTPServer(e, options))
+	r.Methods("GET").Path("/api/v1/characters/{id}").Handler(ViewCharacterHTTPServer(e, options))
+	r.Methods("GET").Path("/api/v1/characters/{id}/inventory").Handler(ViewCharacterInventoryHTTPServer(e, options))
+
 	r.Methods("POST").Path("/api/v1/portals").Handler(OpenPortalHTTPServer(e, options))
+	r.Methods("GET").Path("/api/v1/portals").Handler(ListPortalsHTTPServer(e, options))
+	r.Methods("GET").Path("/api/v1/portal/{id}").Handler(ViewPortalHTTPServer(e, options))
 	r.Methods("POST").Path("/api/v1/portals/{id}/explore").Handler(ExplorePortalHTTPServer(e, options))
 
 	return r
 }
 
+// DumpRequest dumps the request to stdout for debugging
 func DumpRequest() httptransport.RequestFunc {
 	return func(ctx context.Context, r *http.Request) context.Context {
 		dump, err := httputil.DumpRequest(r, true)
@@ -62,6 +66,7 @@ func DumpRequest() httptransport.RequestFunc {
 	}
 }
 
+// DumpResponse dumps the response to stdout for debugging
 func DumpResponse() httptransport.ClientResponseFunc {
 	return func(ctx context.Context, r *http.Response) context.Context {
 		dump, err := httputil.DumpResponse(r, true)
@@ -91,13 +96,20 @@ func MakeHTTPClientEndpoints(instance string) (Endpoints, error) {
 	}
 
 	return Endpoints{
-		AuthenticateEndpoint:     AuthenticateHTTPClient(tgt, options),
-		CharacterDetailsEndpoint: CharacterDetailsHTTPClient(tgt, options),
-		OpenPortalEndpoint:       OpenPortalHTTPClient(tgt, options),
-		ExplorePortalEndpoint:    ExplorePortalHTTPClient(tgt, options),
+		AuthenticateEndpoint: AuthenticateHTTPClient(tgt, options),
+
+		ViewCharacterEndpoint:          ViewCharacterHTTPClient(tgt, options),
+		ListCharactersEndpoint:         ListCharactersHTTPClient(tgt, options),
+		ViewCharacterInventoryEndpoint: ViewCharacterInventoryHTTPClient(tgt, options),
+
+		OpenPortalEndpoint:    OpenPortalHTTPClient(tgt, options),
+		ExplorePortalEndpoint: ExplorePortalHTTPClient(tgt, options),
+		ListPortalsEndpoint:   ListPortalsHTTPClient(tgt, options),
+		ViewPortalEndpoint:    ViewPortalHTTPClient(tgt, options),
 	}, nil
 }
 
+// AuthenticateHTTPServer serves the AuthenticateEndpoint
 func AuthenticateHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
 	return httptransport.NewServer(endpoints.AuthenticateEndpoint,
 		func(_ context.Context, r *http.Request) (request interface{}, err error) {
@@ -126,6 +138,7 @@ func AuthenticateHTTPServer(endpoints Endpoints, options []httptransport.ServerO
 	)
 }
 
+// AuthenticateHTTPClient calls the AuthenticateEndpoint
 func AuthenticateHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
 	return httptransport.NewClient("POST", tgt,
 		func(ctx context.Context, req *http.Request, request interface{}) error {
@@ -145,6 +158,7 @@ func AuthenticateHTTPClient(tgt *url.URL, options []httptransport.ClientOption) 
 	).Endpoint()
 }
 
+// OpenPortalHTTPServer serves the OpenPortalEndpoint
 func OpenPortalHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
 	return httptransport.NewServer(endpoints.OpenPortalEndpoint,
 		func(_ context.Context, r *http.Request) (request interface{}, err error) {
@@ -160,6 +174,7 @@ func OpenPortalHTTPServer(endpoints Endpoints, options []httptransport.ServerOpt
 	)
 }
 
+// OpenPortalHTTPClient calls the OpenPortalEndpoint
 func OpenPortalHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
 	return httptransport.NewClient("POST", tgt,
 		func(ctx context.Context, req *http.Request, request interface{}) error {
@@ -179,24 +194,30 @@ func OpenPortalHTTPClient(tgt *url.URL, options []httptransport.ClientOption) en
 	).Endpoint()
 }
 
-func CharacterDetailsHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
-	return httptransport.NewServer(endpoints.CharacterDetailsEndpoint,
+// ListPortalsHTTPServer serves the ListPortalsEndpoint
+func ListPortalsHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
+	return httptransport.NewServer(endpoints.ListPortalsEndpoint,
 		func(_ context.Context, r *http.Request) (request interface{}, err error) {
-			return CharacterDetailsRequest{}, nil
+			return ListPortalsRequest{}, nil
 		},
 		encodeResponse,
 		options...,
 	)
 }
 
-func CharacterDetailsHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
+// ListPortalsHTTPClient calls the ListPortalsEndpoint
+func ListPortalsHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
 	return httptransport.NewClient("GET", tgt,
 		func(ctx context.Context, req *http.Request, request interface{}) error {
-			req.URL.Path = "/api/v1/character"
-			return encodeRequest(ctx, req, nil)
+			req.URL.Path = "/api/v1/portals"
+			listRequest, ok := request.(ListPortalsRequest)
+			if !ok {
+				panic("Wrong request type")
+			}
+			return encodeRequest(ctx, req, listRequest)
 		},
 		func(_ context.Context, resp *http.Response) (interface{}, error) {
-			var response CharacterDetailsResponse
+			var response ListPortalsResponse
 			err := json.NewDecoder(resp.Body).Decode(&response)
 			return response, err
 		},
@@ -204,6 +225,151 @@ func CharacterDetailsHTTPClient(tgt *url.URL, options []httptransport.ClientOpti
 	).Endpoint()
 }
 
+// ViewPortalHTTPServer serves the ViewPortalEndpoint
+func ViewPortalHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
+	return httptransport.NewServer(endpoints.ViewPortalEndpoint,
+		func(_ context.Context, r *http.Request) (request interface{}, err error) {
+			vars := mux.Vars(r)
+			id, ok := vars["id"]
+			if !ok {
+				return nil, ErrBadRouting
+			}
+
+			return ViewPortalRequest{
+				ID: id,
+			}, nil
+		},
+		encodeResponse,
+		options...,
+	)
+}
+
+// ViewPortalHTTPClient calls the ViewPortalEndpoint
+func ViewPortalHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
+	return httptransport.NewClient("GET", tgt,
+		func(ctx context.Context, req *http.Request, request interface{}) error {
+			portalRequest, ok := request.(ViewPortalRequest)
+			if !ok {
+				panic("Wrong request type")
+			}
+			req.URL.Path = fmt.Sprintf("/api/v1/portals/%s", portalRequest.ID)
+			return encodeRequest(ctx, req, nil)
+		},
+		func(_ context.Context, resp *http.Response) (interface{}, error) {
+			var response ViewPortalResponse
+			err := json.NewDecoder(resp.Body).Decode(&response)
+			return response, err
+		},
+		options...,
+	).Endpoint()
+}
+
+// ViewCharacterInventoryHTTPServer serves the ViewCharacterInventoryEndpoint
+func ViewCharacterInventoryHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
+	return httptransport.NewServer(endpoints.ViewCharacterInventoryEndpoint,
+		func(_ context.Context, r *http.Request) (request interface{}, err error) {
+			vars := mux.Vars(r)
+			id, ok := vars["id"]
+			if !ok {
+				return nil, ErrBadRouting
+			}
+
+			return ViewCharacterInventoryRequest{
+				CharacterID: id,
+			}, nil
+		},
+		encodeResponse,
+		options...,
+	)
+}
+
+// ViewCharacterInventoryHTTPClient calls the ViewCharacterInventoryEndpoint
+func ViewCharacterInventoryHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
+	return httptransport.NewClient("GET", tgt,
+		func(ctx context.Context, req *http.Request, request interface{}) error {
+			listReq, ok := request.(ViewCharacterInventoryRequest)
+			if !ok {
+				panic("Wrong request type")
+			}
+			req.URL.Path = fmt.Sprintf("/api/v1/characters/%s/inventory", listReq.CharacterID)
+			return encodeRequest(ctx, req, nil)
+		},
+		func(_ context.Context, resp *http.Response) (interface{}, error) {
+			var response ViewCharacterInventoryResponse
+			err := json.NewDecoder(resp.Body).Decode(&response)
+			return response, err
+		},
+		options...,
+	).Endpoint()
+}
+
+// ListCharactersHTTPServer serves the ListCharactersEndpoint
+func ListCharactersHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
+	return httptransport.NewServer(endpoints.ListCharactersEndpoint,
+		func(_ context.Context, r *http.Request) (request interface{}, err error) {
+			return ListCharactersRequest{}, nil
+		},
+		encodeResponse,
+		options...,
+	)
+}
+
+// ListCharactersHTTPClient serves the ListCharactersEndpoint
+func ListCharactersHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
+	return httptransport.NewClient("GET", tgt,
+		func(ctx context.Context, req *http.Request, request interface{}) error {
+			req.URL.Path = "/api/v1/characters"
+			return encodeRequest(ctx, req, nil)
+		},
+		func(_ context.Context, resp *http.Response) (interface{}, error) {
+			var response ListCharactersResponse
+			err := json.NewDecoder(resp.Body).Decode(&response)
+			return response, err
+		},
+		options...,
+	).Endpoint()
+}
+
+// ViewCharacterHTTPServer serves the ViewCharacterEndpoint
+func ViewCharacterHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
+	return httptransport.NewServer(endpoints.ViewCharacterEndpoint,
+		func(_ context.Context, r *http.Request) (request interface{}, err error) {
+			vars := mux.Vars(r)
+			id, ok := vars["id"]
+			if !ok {
+				return nil, ErrBadRouting
+			}
+
+			return ViewCharacterRequest{
+				ID: id,
+			}, nil
+		},
+		encodeResponse,
+		options...,
+	)
+}
+
+// ViewCharacterHTTPClient calls the ViewCharacterEndpoint
+func ViewCharacterHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
+	return httptransport.NewClient("GET", tgt,
+		func(ctx context.Context, req *http.Request, request interface{}) error {
+			characterReq, ok := request.(ViewPortalRequest)
+			if !ok {
+				panic("Wrong request type")
+			}
+			req.URL.Path = fmt.Sprintf("/api/v1/characters/%s", characterReq.ID)
+			return encodeRequest(ctx, req, nil)
+		},
+		func(_ context.Context, resp *http.Response) (interface{}, error) {
+			var response ViewCharacterResponse
+			err := json.NewDecoder(resp.Body).Decode(&response)
+			return response, err
+		},
+		options...,
+	).Endpoint()
+}
+
+// ExplorePortalHTTPServer serves the ExplorePortalEndpoint
 func ExplorePortalHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
 	return httptransport.NewServer(endpoints.ExplorePortalEndpoint,
 		func(_ context.Context, r *http.Request) (request interface{}, err error) {
@@ -226,6 +392,7 @@ func ExplorePortalHTTPServer(endpoints Endpoints, options []httptransport.Server
 	)
 }
 
+// ExplorePortalHTTPClient calls the ExplorePortalEndpoint
 func ExplorePortalHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
 	return httptransport.NewClient("POST", tgt,
 		func(ctx context.Context, req *http.Request, request interface{}) error {

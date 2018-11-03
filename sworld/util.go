@@ -16,6 +16,8 @@ const (
 	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
 )
 
+// RandomID generates a random id
+// TODO: We might want move ids entirely to sworldservice
 func RandomID(size int) string {
 	b := make([]byte, size)
 

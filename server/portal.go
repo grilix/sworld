@@ -1,13 +1,5 @@
 package server
 
-import (
-	"context"
-
-	"github.com/go-kit/kit/endpoint"
-	"github.com/grilix/sworld/sworld"
-	"github.com/grilix/sworld/sworldservice"
-)
-
 // ZoneDetails represents the details of a zone
 type ZoneDetails struct {
 	ID   string `json:"id"`
@@ -27,10 +19,29 @@ type OpenPortalRequest struct {
 	StoneID string `json:"stone_id"`
 }
 
+// ViewPortalRequest represents a request for viewing a portal
+type ViewPortalRequest struct {
+	ID string `json:"id"`
+}
+
+// ViewPortalResponse represents a response with the portal details
+type ViewPortalResponse struct {
+	Portal *PortalDetails `json:"portal"`
+}
+
 // OpenPortalResponse holds the result of creating a portal
 type OpenPortalResponse struct {
 	Portal *PortalDetails `json:"portal,omitempty"`
 	Error  string         `json:"error,omitempty"`
+}
+
+// ListPortalsRequest represents a request for listing the portals
+type ListPortalsRequest struct {
+}
+
+// ListPortalsResponse represents a response with the portals list
+type ListPortalsResponse struct {
+	Portals []*PortalDetails `json:"portals"`
 }
 
 // ListZonesRequest holds the parameters for listing zones
@@ -55,58 +66,9 @@ type ExplorePortalRequest struct {
 }
 
 // ExplorePortalResponse represents the result of an explore portal request
+// TODO: We might want to include extra information here, like, for example:
+//   - Portal information?
+//   - Time remaining
 type ExplorePortalResponse struct {
 	//Error string `json:"error,omitempty"`
-}
-
-// MakeExplorePortalEndpoint creates the endpoint for exploring a portal
-func MakeExplorePortalEndpoint(s sworldservice.Service) endpoint.Endpoint {
-	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		user, ok := ctx.Value(ctxUserKey).(*sworld.User)
-		if !ok {
-			return ExplorePortalResponse{}, ErrNoAccount
-		}
-
-		exploreReq, ok := request.(ExplorePortalRequest)
-		if !ok {
-			return ExplorePortalResponse{}, WrongRequestError{Endpoint: "ExplorePortal"}
-		}
-
-		err := s.ExplorePortal(user, exploreReq.PortalID, exploreReq.CharacterID)
-
-		// TODO: response?
-		return ExplorePortalResponse{}, err
-	}
-}
-
-// MakeOpenPortalEndpoint makes the endpoint for creating a portal
-func MakeOpenPortalEndpoint(s sworldservice.Service) endpoint.Endpoint {
-	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		user, ok := ctx.Value(ctxUserKey).(*sworld.User)
-		if !ok {
-			return OpenPortalResponse{}, ErrNoAccount
-		}
-
-		portalReq, ok := request.(OpenPortalRequest)
-		if !ok {
-			return OpenPortalResponse{}, WrongRequestError{Endpoint: "OpenPortal"}
-		}
-
-		portal, err := s.OpenPortal(user, portalReq.StoneID)
-		if err != nil {
-			return OpenPortalResponse{Error: err.Error()}, err
-		}
-
-		return OpenPortalResponse{
-			Portal: &PortalDetails{
-				ID:       portal.ID,
-				Duration: portal.PortalStone.Duration.String(),
-				Level:    portal.PortalStone.Level,
-				Zone: ZoneDetails{
-					ID:   portal.PortalStone.Zone.ID,
-					Name: portal.PortalStone.Zone.Name,
-				},
-			},
-		}, nil
-	}
 }

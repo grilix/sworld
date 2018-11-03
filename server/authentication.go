@@ -7,7 +7,6 @@ import (
 	stdjwt "github.com/dgrijalva/jwt-go"
 	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
-	//"github.com/grilix/sworld/sworld"
 	"github.com/grilix/sworld/sworldservice"
 )
 
@@ -46,6 +45,8 @@ func jwtKey(token *stdjwt.Token) (interface{}, error) {
 	return jwtSecretKey, nil
 }
 
+// EmptyResponse represents a response that has no information to show
+// FIXME: This actually sounds weird, can't we just use nil instead?
 type EmptyResponse struct{}
 
 // TODO: we need to improve this shit
@@ -60,7 +61,6 @@ func userFromContext(s sworldservice.Service) endpoint.Middleware {
 			user := s.FindUser(claims.Id)
 			if user == nil {
 				return EmptyResponse{}, ErrWrongToken
-				//return next(ctx, request)
 			}
 
 			ctx = context.WithValue(ctx, ctxUserKey, user)
@@ -76,34 +76,4 @@ func authenticatedEndpoint(
 	return jwt.NewParser(
 		jwtKey, stdjwt.SigningMethodHS256, jwt.StandardClaimsFactory,
 	)(userFromContext(s)(endpointFactory(s)))
-}
-
-// MakeAuthenticateEndpoint creates the Authenticate endpoint
-func MakeAuthenticateEndpoint(s sworldservice.Service) endpoint.Endpoint {
-	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
-		req := request.(AuthenticateRequest)
-		user, err := s.Authenticate(ctx, req.Credentials)
-		if err != nil {
-			return AuthenticateResponse{Error: err.Error()}, err
-		}
-
-		token := stdjwt.NewWithClaims(
-			stdjwt.SigningMethodHS256, stdjwt.StandardClaims{
-				Id: user.ID,
-			},
-		)
-
-		tokenString, err := token.SignedString(jwtSecretKey)
-		if err != nil {
-			return AuthenticateResponse{Error: err.Error()}, ErrCantGenerateJWT
-		}
-
-		return AuthenticateResponse{
-			User: UserDetails{
-				ID:       user.ID,
-				Username: user.Username,
-			},
-			Token: tokenString,
-		}, nil
-	}
 }
