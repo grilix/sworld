@@ -71,6 +71,21 @@ func listCharacters(ctx context.Context, client *Client) (server.ListCharactersR
 	return charRes, nil
 }
 
+func userInventory(ctx context.Context, client *Client) (server.ViewUserInventoryResponse, error) {
+	req := server.ViewUserInventoryRequest{}
+	res, err := client.e.ViewUserInventoryEndpoint(ctx, req)
+	if err != nil {
+		return server.ViewUserInventoryResponse{}, err
+	}
+
+	charRes, ok := res.(server.ViewUserInventoryResponse)
+	if !ok {
+		return server.ViewUserInventoryResponse{}, ErrWrongResponse
+	}
+
+	return charRes, nil
+}
+
 func characterInventory(ctx context.Context, client *Client, characterID string) (server.ViewCharacterInventoryResponse, error) {
 	req := server.ViewCharacterInventoryRequest{
 		CharacterID: characterID,
@@ -212,6 +227,11 @@ func main() {
 			}
 			portal.ID = portalRes.Portal.ID
 		case "inventory":
+			_, err = userInventory(ctx, client)
+			if err != nil {
+				panic(err)
+			}
+		case "char-inventory":
 			_, err = characterInventory(ctx, client, character.ID)
 			if err != nil {
 				panic(err)

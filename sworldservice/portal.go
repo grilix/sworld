@@ -11,8 +11,6 @@ import (
 var (
 	// ErrCharacterBusy means the character is busy and cannot perform the requested task
 	ErrCharacterBusy = errors.New("The character is busy")
-	// ErrInvalidCharacterOwner means the user does not own that character
-	ErrInvalidCharacterOwner = errors.New("Not the owner of that character")
 	// ErrCantEnterPortal means the user is not allowed to enter that portal
 	ErrCantEnterPortal = errors.New("The portal is not accessible")
 	// ErrPortalNotFound means the portal does not exist

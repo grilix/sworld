@@ -28,11 +28,14 @@ type WrongRequestError struct {
 
 // Endpoints hold the endpoints
 type Endpoints struct {
-	AuthenticateEndpoint endpoint.Endpoint
+	AuthenticateEndpoint      endpoint.Endpoint
+	ViewUserInventoryEndpoint endpoint.Endpoint
 
 	ViewCharacterEndpoint          endpoint.Endpoint
 	ListCharactersEndpoint         endpoint.Endpoint
 	ViewCharacterInventoryEndpoint endpoint.Endpoint
+	DropCharacterItemEndpoint      endpoint.Endpoint
+	TakeCharacterItemEndpoint      endpoint.Endpoint
 
 	OpenPortalEndpoint    endpoint.Endpoint
 	ExplorePortalEndpoint endpoint.Endpoint
@@ -43,11 +46,14 @@ type Endpoints struct {
 // MakeServerEndpoints creates an endpoints list for a server
 func MakeServerEndpoints(s sworldservice.Service) Endpoints {
 	return Endpoints{
-		AuthenticateEndpoint: MakeAuthenticateEndpoint(s),
+		AuthenticateEndpoint:      MakeAuthenticateEndpoint(s),
+		ViewUserInventoryEndpoint: authenticatedEndpoint(s, MakeViewUserInventoryEndpoint),
 
 		ViewCharacterEndpoint:          authenticatedEndpoint(s, MakeViewCharacterEndpoint),
 		ListCharactersEndpoint:         authenticatedEndpoint(s, MakeListCharactersEndpoint),
 		ViewCharacterInventoryEndpoint: authenticatedEndpoint(s, MakeViewCharacterInventoryEndpoint),
+		DropCharacterItemEndpoint:      authenticatedEndpoint(s, MakeDropCharacterItemEndpoint),
+		TakeCharacterItemEndpoint:      authenticatedEndpoint(s, MakeTakeCharacterItemEndpoint),
 
 		OpenPortalEndpoint:    authenticatedEndpoint(s, MakeOpenPortalEndpoint),
 		ExplorePortalEndpoint: authenticatedEndpoint(s, MakeExplorePortalEndpoint),
@@ -98,7 +104,15 @@ func MakeViewCharacterEndpoint(s sworldservice.Service) endpoint.Endpoint {
 			return ViewCharacterResponse{}, ErrNoAccount
 		}
 
-		character := user.Character
+		charReq, ok := request.(ViewCharacterRequest)
+		if !ok {
+			return ViewCharacterResponse{}, WrongRequestError{Endpoint: "ViewCharacterEndpoint"}
+		}
+
+		character, err := user.FindCharacter(charReq.ID)
+		if err != nil {
+			return ViewCharacterResponse{}, err
+		}
 
 		return ViewCharacterResponse{
 			Character: &CharacterDetails{
@@ -132,6 +146,27 @@ func MakeListCharactersEndpoint(s sworldservice.Service) endpoint.Endpoint {
 
 		return ListCharactersResponse{
 			Characters: charactersList,
+		}, nil
+	}
+}
+
+// MakeViewUserInventoryEndpoint creates the ViewUserInventory endpoint
+func MakeViewUserInventoryEndpoint(s sworldservice.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		user, ok := ctx.Value(ctxUserKey).(*sworld.User)
+		if !ok {
+			return ViewUserInventoryResponse{}, ErrNoAccount
+		}
+
+		inventory, err := s.ViewUserInventory(user)
+		if err != nil {
+			return ViewUserInventoryResponse{}, err
+		}
+
+		userBags := inventoryDetails(inventory)
+
+		return ViewUserInventoryResponse{
+			Bags: userBags,
 		}, nil
 	}
 }
@@ -226,6 +261,44 @@ func MakeViewPortalEndpoint(s sworldservice.Service) endpoint.Endpoint {
 				},
 			},
 		}, err
+	}
+}
+
+// MakeTakeCharacterItemEndpoint creates the endpoint for dropping character items
+func MakeTakeCharacterItemEndpoint(s sworldservice.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		user, ok := ctx.Value(ctxUserKey).(*sworld.User)
+		if !ok {
+			return TakeCharacterItemResponse{}, ErrNoAccount
+		}
+
+		dropReq, ok := request.(TakeCharacterItemRequest)
+		if !ok {
+			return TakeCharacterItemResponse{}, WrongRequestError{Endpoint: "TakeCharacterItem"}
+		}
+
+		err := s.TakeCharacterItem(user, dropReq.CharacterID, dropReq.BagID, dropReq.Slot)
+
+		return TakeCharacterItemResponse{}, err
+	}
+}
+
+// MakeDropCharacterItemEndpoint creates the endpoint for dropping character items
+func MakeDropCharacterItemEndpoint(s sworldservice.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		user, ok := ctx.Value(ctxUserKey).(*sworld.User)
+		if !ok {
+			return DropCharacterItemResponse{}, ErrNoAccount
+		}
+
+		dropReq, ok := request.(DropCharacterItemRequest)
+		if !ok {
+			return DropCharacterItemResponse{}, WrongRequestError{Endpoint: "DropCharacterItem"}
+		}
+
+		err := s.DropCharacterItem(user, dropReq.CharacterID, dropReq.BagID, dropReq.Slot)
+
+		return DropCharacterItemResponse{}, err
 	}
 }
 

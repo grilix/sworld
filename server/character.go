@@ -39,6 +39,30 @@ type BagDetails struct {
 	Items []*BagSlotDetails `json:"items"`
 }
 
+// TakeCharacterItemRequest represents a request for dropping an item from the character inventory
+type TakeCharacterItemRequest struct {
+	CharacterID string `json:"id"`
+	BagID       int    `json:"bag_id"`
+	Slot        int    `json:"slot"`
+}
+
+// TakeCharacterItemResponse represents a response after dropping an item from the character inventory
+type TakeCharacterItemResponse struct {
+	// TODO: what to respond here?
+}
+
+// DropCharacterItemRequest represents a request for dropping an item from the character inventory
+type DropCharacterItemRequest struct {
+	CharacterID string `json:"id"`
+	BagID       int    `json:"bag_id"`
+	Slot        int    `json:"slot"`
+}
+
+// DropCharacterItemResponse represents a response after dropping an item from the character inventory
+type DropCharacterItemResponse struct {
+	// TODO: what to respond here?
+}
+
 // ViewCharacterInventoryRequest represents a request for viewing the character inventory
 type ViewCharacterInventoryRequest struct {
 	CharacterID string `json:"character_id"`

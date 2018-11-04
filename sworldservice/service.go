@@ -14,8 +14,6 @@ var (
 	ErrNotImplemented = errors.New("This service call is not implemented")
 	// ErrPortalStoneNotFound means the stone does not exist
 	ErrPortalStoneNotFound = errors.New("The stone does not exist")
-	// ErrCharacterNotFound is when the character cannot be found
-	ErrCharacterNotFound = errors.New("That character was not found")
 )
 
 type sCharacter struct {
@@ -37,9 +35,12 @@ type sUser struct {
 type Service interface {
 	Authenticate(ctx context.Context, c Credentials) (*sworld.User, error)
 	FindUser(id string) *sworld.User
+	ViewUserInventory(user *sworld.User) ([]sworld.Bag, error)
 
 	ListCharacters(user *sworld.User) ([]*sworld.Character, error)
 	ViewCharacterInventory(characterID string) ([]sworld.Bag, error)
+	DropCharacterItem(user *sworld.User, characterID string, bagID, slot int) error
+	TakeCharacterItem(user *sworld.User, characterID string, bagID, slot int) error
 
 	OpenPortal(user *sworld.User, stoneID string) (*sworld.Portal, error)
 	ExplorePortal(user *sworld.User, portalID, characterID string) error
@@ -65,22 +66,42 @@ func NewService() Service {
 	}
 }
 
+func (s *swService) TakeCharacterItem(user *sworld.User, characterID string, bagID, slot int) error {
+	// FIXME: Maybe just remove this service method and use user directly?
+	return user.TakeCharacterItem(characterID, bagID, slot)
+}
+
+func (s *swService) DropCharacterItem(user *sworld.User, characterID string, bagID, slot int) error {
+	character, err := user.FindCharacter(characterID)
+	if err != nil {
+		return err
+	}
+	if bagID >= len(character.Bags) {
+		return sworld.ErrInvalidBag
+	}
+	bag := character.Bags[bagID]
+	_, err = bag.DropItem(slot)
+
+	return err
+}
+
+func (s *swService) ViewUserInventory(user *sworld.User) ([]sworld.Bag, error) {
+	// FIXME: call user.Bags directly?
+	return user.Bags, nil
+}
+
 func (s *swService) ViewCharacterInventory(characterID string) ([]sworld.Bag, error) {
 	character := s.characters[characterID]
 	if character == nil {
-		return nil, ErrCharacterNotFound
+		return nil, sworld.ErrCharacterNotFound
 	}
 
 	return character.Bags, nil
 }
 
 func (s *swService) ListCharacters(user *sworld.User) ([]*sworld.Character, error) {
-	characters := make([]*sworld.Character, 0, 1)
-
-	// TODO: Users currently have only one character
-	characters = append(characters, user.Character)
-
-	return characters, nil
+	// FIXME: Not sure about this
+	return user.Characters, nil
 }
 
 func (s *swService) ViewPortal(portalID string) (*sworld.Portal, error) {
@@ -131,19 +152,20 @@ func (s *swService) ExplorePortal(user *sworld.User, portalID, characterID strin
 	if sportal.p.User.ID != user.ID {
 		return ErrCantEnterPortal
 	}
-	if user.Character.ID != characterID {
-		return ErrInvalidCharacterOwner
+	character, err := user.FindCharacter(characterID)
+	if err != nil {
+		return err
 	}
 
-	if user.Character.Exploring {
+	if character.Exploring {
 		return ErrCharacterBusy
 	}
 
-	s.handleExplore(sportal.p, user.Character)
+	s.handleExplore(sportal.p, character)
 
 	// TODO: What's this?
 	sportal.c = &sCharacter{
-		c: user.Character,
+		c: character,
 		u: s.users[user.ID],
 	}
 

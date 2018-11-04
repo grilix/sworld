@@ -10,15 +10,15 @@ import (
 	"github.com/grilix/sworld/sworldservice"
 )
 
-// AuthenticateRequest holds the credentials for authentication
-type AuthenticateRequest struct {
-	Credentials sworldservice.Credentials
-}
-
 // UserDetails represents a user
 type UserDetails struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
+}
+
+// AuthenticateRequest holds the credentials for authentication
+type AuthenticateRequest struct {
+	Credentials sworldservice.Credentials
 }
 
 // AuthenticateResponse holds the result of the authentication endpoint
@@ -26,6 +26,15 @@ type AuthenticateResponse struct {
 	User  UserDetails `json:"user,omitempty"`
 	Error string      `json:"error,omitempty"`
 	Token string      `json:"token,omitempty"`
+}
+
+// ViewUserInventoryRequest represents a request for viewing the user inventory
+type ViewUserInventoryRequest struct {
+}
+
+// ViewUserInventoryResponse represents a response with the user inventory
+type ViewUserInventoryResponse struct {
+	Bags []*BagDetails `json:"bags"`
 }
 
 type ctxSessionKeyType string

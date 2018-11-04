@@ -1,8 +1,14 @@
 package sworld
 
 import (
+	"errors"
 	"log"
 	"time"
+)
+
+var (
+	// ErrCharacterNotFound is when the character cannot be found
+	ErrCharacterNotFound = errors.New("That character was not found")
 )
 
 // Delete item:
@@ -36,16 +42,25 @@ type Character struct {
 	enemies int
 }
 
-// TODO: This could be exported
-func (c *Character) pickupItem(item Item) (int, int, error) {
+func (c Character) findEmptyBagSlot(item Item) (int, int, error) {
 	for id, bag := range c.Bags {
-		slot, err := bag.StoreItem(item)
-		if err != nil {
-			continue
+		slot, err := bag.FindEmptySlot(item)
+		if err == nil {
+			return id, slot, nil
 		}
-		return id, slot, nil
 	}
 	return 0, 0, ErrInventoryFull
+}
+
+// TODO: This could be exported
+func (c *Character) pickupItem(item Item) (int, int, error) {
+	bagID, slot, err := c.findEmptyBagSlot(item)
+	if err != nil {
+		return bagID, slot, err
+	}
+	c.Bags[bagID].StoreItem(item, slot)
+
+	return bagID, slot, nil
 }
 
 // ReturnToTown makes the character leave the "exploring" state

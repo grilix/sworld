@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/go-kit/kit/auth/jwt"
@@ -41,10 +42,13 @@ func MakeHTTPServer(s sworldservice.Service, logger klog.Logger) http.Handler {
 	}
 
 	r.Methods("POST").Path("/api/v1/auth").Handler(AuthenticateHTTPServer(e, options))
+	r.Methods("GET").Path("/api/v1/inventory").Handler(ViewUserInventoryHTTPServer(e, options))
 
 	r.Methods("GET").Path("/api/v1/characters").Handler(ListCharactersHTTPServer(e, options))
 	r.Methods("GET").Path("/api/v1/characters/{id}").Handler(ViewCharacterHTTPServer(e, options))
 	r.Methods("GET").Path("/api/v1/characters/{id}/inventory").Handler(ViewCharacterInventoryHTTPServer(e, options))
+	r.Methods("POST").Path("/api/v1/characters/{id}/drop").Handler(DropCharacterItemHTTPServer(e, options))
+	r.Methods("POST").Path("/api/v1/characters/{id}/take").Handler(TakeCharacterItemHTTPServer(e, options))
 
 	r.Methods("POST").Path("/api/v1/portals").Handler(OpenPortalHTTPServer(e, options))
 	r.Methods("GET").Path("/api/v1/portals").Handler(ListPortalsHTTPServer(e, options))
@@ -96,11 +100,14 @@ func MakeHTTPClientEndpoints(instance string) (Endpoints, error) {
 	}
 
 	return Endpoints{
-		AuthenticateEndpoint: AuthenticateHTTPClient(tgt, options),
+		AuthenticateEndpoint:      AuthenticateHTTPClient(tgt, options),
+		ViewUserInventoryEndpoint: ViewUserInventoryHTTPClient(tgt, options),
 
 		ViewCharacterEndpoint:          ViewCharacterHTTPClient(tgt, options),
 		ListCharactersEndpoint:         ListCharactersHTTPClient(tgt, options),
 		ViewCharacterInventoryEndpoint: ViewCharacterInventoryHTTPClient(tgt, options),
+		DropCharacterItemEndpoint:      DropCharacterItemHTTPClient(tgt, options),
+		TakeCharacterItemEndpoint:      TakeCharacterItemHTTPClient(tgt, options),
 
 		OpenPortalEndpoint:    OpenPortalHTTPClient(tgt, options),
 		ExplorePortalEndpoint: ExplorePortalHTTPClient(tgt, options),
@@ -264,6 +271,33 @@ func ViewPortalHTTPClient(tgt *url.URL, options []httptransport.ClientOption) en
 	).Endpoint()
 }
 
+// ViewUserInventoryHTTPServer serves the ViewUserInventoryEndpoint
+func ViewUserInventoryHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
+	return httptransport.NewServer(endpoints.ViewUserInventoryEndpoint,
+		func(_ context.Context, r *http.Request) (request interface{}, err error) {
+			return ViewUserInventoryRequest{}, nil
+		},
+		encodeResponse,
+		options...,
+	)
+}
+
+// ViewUserInventoryHTTPClient calls the ViewUserInventoryEndpoint
+func ViewUserInventoryHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
+	return httptransport.NewClient("GET", tgt,
+		func(ctx context.Context, req *http.Request, request interface{}) error {
+			req.URL.Path = "/api/v1/inventory"
+			return encodeRequest(ctx, req, nil)
+		},
+		func(_ context.Context, resp *http.Response) (interface{}, error) {
+			var response ViewUserInventoryResponse
+			err := json.NewDecoder(resp.Body).Decode(&response)
+			return response, err
+		},
+		options...,
+	).Endpoint()
+}
+
 // ViewCharacterInventoryHTTPServer serves the ViewCharacterInventoryEndpoint
 func ViewCharacterInventoryHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
 	return httptransport.NewServer(endpoints.ViewCharacterInventoryEndpoint,
@@ -362,6 +396,136 @@ func ViewCharacterHTTPClient(tgt *url.URL, options []httptransport.ClientOption)
 		},
 		func(_ context.Context, resp *http.Response) (interface{}, error) {
 			var response ViewCharacterResponse
+			err := json.NewDecoder(resp.Body).Decode(&response)
+			return response, err
+		},
+		options...,
+	).Endpoint()
+}
+
+// TakeCharacterItemHTTPServer serves the TakeCharacterItemEndpoint
+func TakeCharacterItemHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
+	return httptransport.NewServer(endpoints.TakeCharacterItemEndpoint,
+		func(_ context.Context, r *http.Request) (request interface{}, err error) {
+			query := r.URL.Query()
+			vars := mux.Vars(r)
+			id, ok := vars["id"]
+			if !ok {
+				return nil, ErrBadRouting
+			}
+			varBagID := query.Get("bagid")
+			if varBagID == "" {
+				// FIXME: This is when the param is empty
+				return nil, ErrBadRouting
+			}
+			varSlot := query.Get("slot")
+			if varSlot == "" {
+				// FIXME: This is when the param is empty
+				return nil, ErrBadRouting
+			}
+
+			bagID, err := strconv.Atoi(varBagID)
+			if err != nil {
+				// FIXME: This is when bagid is not a number
+				return nil, ErrBadRouting
+			}
+			slot, err := strconv.Atoi(varSlot)
+			if err != nil {
+				// FIXME: This is when slot is not a number
+				return nil, ErrBadRouting
+			}
+
+			return TakeCharacterItemRequest{
+				CharacterID: id,
+				BagID:       bagID,
+				Slot:        slot,
+			}, nil
+		},
+		encodeResponse,
+		options...,
+	)
+}
+
+// TakeCharacterItemHTTPClient calls the ViewCharacterEndpoint
+func TakeCharacterItemHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
+	return httptransport.NewClient("GET", tgt,
+		func(ctx context.Context, req *http.Request, request interface{}) error {
+			dropReq, ok := request.(TakeCharacterItemRequest)
+			if !ok {
+				panic("Wrong request type")
+			}
+			panic("Not implemented")
+			// TODO: Add bagid and slot
+			req.URL.Path = fmt.Sprintf("/api/v1/characters/%s/drop", dropReq.CharacterID)
+			return encodeRequest(ctx, req, nil)
+		},
+		func(_ context.Context, resp *http.Response) (interface{}, error) {
+			var response TakeCharacterItemResponse
+			err := json.NewDecoder(resp.Body).Decode(&response)
+			return response, err
+		},
+		options...,
+	).Endpoint()
+}
+
+// DropCharacterItemHTTPServer serves the DropCharacterItemEndpoint
+func DropCharacterItemHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
+	return httptransport.NewServer(endpoints.DropCharacterItemEndpoint,
+		func(_ context.Context, r *http.Request) (request interface{}, err error) {
+			query := r.URL.Query()
+			vars := mux.Vars(r)
+			id, ok := vars["id"]
+			if !ok {
+				return nil, ErrBadRouting
+			}
+			varBagID := query.Get("bagid")
+			if varBagID == "" {
+				// FIXME: This is when the param is empty
+				return nil, ErrBadRouting
+			}
+			varSlot := query.Get("slot")
+			if varSlot == "" {
+				// FIXME: This is when the param is empty
+				return nil, ErrBadRouting
+			}
+
+			bagID, err := strconv.Atoi(varBagID)
+			if err != nil {
+				// FIXME: This is when bagid is not a number
+				return nil, ErrBadRouting
+			}
+			slot, err := strconv.Atoi(varSlot)
+			if err != nil {
+				// FIXME: This is when slot is not a number
+				return nil, ErrBadRouting
+			}
+
+			return DropCharacterItemRequest{
+				CharacterID: id,
+				BagID:       bagID,
+				Slot:        slot,
+			}, nil
+		},
+		encodeResponse,
+		options...,
+	)
+}
+
+// DropCharacterItemHTTPClient calls the ViewCharacterEndpoint
+func DropCharacterItemHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
+	return httptransport.NewClient("GET", tgt,
+		func(ctx context.Context, req *http.Request, request interface{}) error {
+			dropReq, ok := request.(DropCharacterItemRequest)
+			if !ok {
+				panic("Wrong request type")
+			}
+			panic("Not implemented")
+			// TODO: Add bagid and slot
+			req.URL.Path = fmt.Sprintf("/api/v1/characters/%s/drop", dropReq.CharacterID)
+			return encodeRequest(ctx, req, nil)
+		},
+		func(_ context.Context, resp *http.Response) (interface{}, error) {
+			var response DropCharacterItemResponse
 			err := json.NewDecoder(resp.Body).Decode(&response)
 			return response, err
 		},

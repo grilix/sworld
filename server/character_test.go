@@ -10,7 +10,8 @@ func TestInventoryDetails(t *testing.T) {
 		sworld.NewStandardBag(5),
 		sworld.NewStandardBag(5),
 	}
-	bags[0].StoreItem(&sworld.PortalStone{Level: 3})
+	zone := &sworld.Zone{}
+	bags[0].StoreItem(&sworld.PortalStone{Level: 3, Zone: zone}, 0)
 
 	details := inventoryDetails(bags)
 	if len(details) != 2 {

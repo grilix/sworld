@@ -13,6 +13,7 @@ type Credentials struct {
 func (s *swService) createUser(username string) (*sworld.User, error) {
 	user := &sUser{
 		u: &sworld.User{
+			Bags:     []sworld.Bag{sworld.NewStandardBag(10)}, // TODO: bag capacity
 			ID:       sworld.RandomID(16),
 			Username: username,
 		},

@@ -19,7 +19,7 @@ func (s *swService) createCharacter(user *sUser) *sworld.Character {
 			sworld.NewStandardBag(10),
 		},
 	}
-	user.u.Character = character
+	user.u.Characters = append(user.u.Characters, character)
 
 	s.characters[character.ID] = character
 
