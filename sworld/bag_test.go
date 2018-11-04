@@ -7,13 +7,9 @@ import (
 func TestStoringItems(t *testing.T) {
 	bag := NewStandardBag(10)
 	stone := &PortalStone{}
-	slot, err := bag.StoreItem(stone)
+	err := bag.StoreItem(stone, 0)
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	if slot != 0 {
-		t.Error("Expected slot to be 0, got ", slot)
 	}
 
 	items := bag.Items()

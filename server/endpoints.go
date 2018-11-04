@@ -277,7 +277,7 @@ func MakeTakeCharacterItemEndpoint(s sworldservice.Service) endpoint.Endpoint {
 			return TakeCharacterItemResponse{}, WrongRequestError{Endpoint: "TakeCharacterItem"}
 		}
 
-		err := s.TakeCharacterItem(user, dropReq.CharacterID, dropReq.BagID, dropReq.Slot)
+		err := s.TakeCharacterItem(user, dropReq.CharacterID, dropReq.ItemLocation.BagID, dropReq.ItemLocation.Slot)
 
 		return TakeCharacterItemResponse{}, err
 	}
@@ -296,7 +296,7 @@ func MakeDropCharacterItemEndpoint(s sworldservice.Service) endpoint.Endpoint {
 			return DropCharacterItemResponse{}, WrongRequestError{Endpoint: "DropCharacterItem"}
 		}
 
-		err := s.DropCharacterItem(user, dropReq.CharacterID, dropReq.BagID, dropReq.Slot)
+		err := s.DropCharacterItem(user, dropReq.CharacterID, dropReq.ItemLocation.BagID, dropReq.ItemLocation.Slot)
 
 		return DropCharacterItemResponse{}, err
 	}
@@ -333,8 +333,16 @@ func MakeOpenPortalEndpoint(s sworldservice.Service) endpoint.Endpoint {
 		if !ok {
 			return OpenPortalResponse{}, WrongRequestError{Endpoint: "OpenPortal"}
 		}
+		var err error
+		var portal *sworld.Portal
 
-		portal, err := s.OpenPortal(user, portalReq.StoneID)
+		location := portalReq.StoneLocation
+
+		if location != nil {
+			portal, err = s.OpenPortalWithStone(user, location.BagID, location.Slot)
+		} else {
+			portal, err = s.OpenDefaultPortal(user)
+		}
 		if err != nil {
 			return OpenPortalResponse{Error: err.Error()}, err
 		}

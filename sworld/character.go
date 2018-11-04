@@ -63,6 +63,15 @@ func (c *Character) pickupItem(item Item) (int, int, error) {
 	return bagID, slot, nil
 }
 
+// DropItem discards an item that is at a given location
+func (c *Character) DropItem(bagID, slot int) (Item, error) {
+	if bagID >= len(c.Bags) {
+		return nil, ErrInvalidBag
+	}
+	bag := c.Bags[bagID]
+	return bag.DropItem(slot)
+}
+
 // ReturnToTown makes the character leave the "exploring" state
 func (c *Character) ReturnToTown(portal *Portal) {
 	c.Exploring = false

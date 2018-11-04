@@ -13,6 +13,12 @@ var (
 	ErrCharacterNotFound = errors.New("Character not found")
 )
 
+// ItemLocation represents an inventory location, used for referring to an item
+type ItemLocation struct {
+	BagID int `json:"bag_id"`
+	Slot  int `json:"slot"`
+}
+
 // CharacterDetails represents a character in a response
 type CharacterDetails struct {
 	ID        string `json:"id"`
@@ -41,9 +47,8 @@ type BagDetails struct {
 
 // TakeCharacterItemRequest represents a request for dropping an item from the character inventory
 type TakeCharacterItemRequest struct {
-	CharacterID string `json:"id"`
-	BagID       int    `json:"bag_id"`
-	Slot        int    `json:"slot"`
+	CharacterID  string       `json:"id"`
+	ItemLocation ItemLocation `json:"location"`
 }
 
 // TakeCharacterItemResponse represents a response after dropping an item from the character inventory
@@ -53,9 +58,8 @@ type TakeCharacterItemResponse struct {
 
 // DropCharacterItemRequest represents a request for dropping an item from the character inventory
 type DropCharacterItemRequest struct {
-	CharacterID string `json:"id"`
-	BagID       int    `json:"bag_id"`
-	Slot        int    `json:"slot"`
+	CharacterID  string       `json:"id"`
+	ItemLocation ItemLocation `json:"location"`
 }
 
 // DropCharacterItemResponse represents a response after dropping an item from the character inventory

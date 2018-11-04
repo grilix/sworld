@@ -14,6 +14,8 @@ var (
 	ErrNotImplemented = errors.New("This service call is not implemented")
 	// ErrPortalStoneNotFound means the stone does not exist
 	ErrPortalStoneNotFound = errors.New("The stone does not exist")
+	// ErrWrongItem is when the item is not valid for an action
+	ErrWrongItem = errors.New("The item is not valid for that action")
 )
 
 type sCharacter struct {
@@ -42,7 +44,8 @@ type Service interface {
 	DropCharacterItem(user *sworld.User, characterID string, bagID, slot int) error
 	TakeCharacterItem(user *sworld.User, characterID string, bagID, slot int) error
 
-	OpenPortal(user *sworld.User, stoneID string) (*sworld.Portal, error)
+	OpenDefaultPortal(user *sworld.User) (*sworld.Portal, error)
+	OpenPortalWithStone(user *sworld.User, bagID, slot int) (*sworld.Portal, error)
 	ExplorePortal(user *sworld.User, portalID, characterID string) error
 	ViewPortal(portalID string) (*sworld.Portal, error)
 	ListPortals(user *sworld.User) ([]*sworld.Portal, error)
@@ -67,20 +70,17 @@ func NewService() Service {
 }
 
 func (s *swService) TakeCharacterItem(user *sworld.User, characterID string, bagID, slot int) error {
-	// FIXME: Maybe just remove this service method and use user directly?
+	// TODO: Fail if the character is exploring
 	return user.TakeCharacterItem(characterID, bagID, slot)
 }
 
 func (s *swService) DropCharacterItem(user *sworld.User, characterID string, bagID, slot int) error {
+	// TODO: fail if the character is exploring
 	character, err := user.FindCharacter(characterID)
 	if err != nil {
 		return err
 	}
-	if bagID >= len(character.Bags) {
-		return sworld.ErrInvalidBag
-	}
-	bag := character.Bags[bagID]
-	_, err = bag.DropItem(slot)
+	_, err = character.DropItem(bagID, slot)
 
 	return err
 }
@@ -91,6 +91,7 @@ func (s *swService) ViewUserInventory(user *sworld.User) ([]sworld.Bag, error) {
 }
 
 func (s *swService) ViewCharacterInventory(characterID string) ([]sworld.Bag, error) {
+	// TODO: Fail if the character is explorig
 	character := s.characters[characterID]
 	if character == nil {
 		return nil, sworld.ErrCharacterNotFound
@@ -172,14 +173,43 @@ func (s *swService) ExplorePortal(user *sworld.User, portalID, characterID strin
 	return nil
 }
 
-func (s *swService) OpenPortal(user *sworld.User, stoneID string) (*sworld.Portal, error) {
-	if stoneID != "" {
-		return nil, ErrPortalStoneNotFound
+func (s *swService) OpenPortalWithStone(user *sworld.User, bagID, slot int) (*sworld.Portal, error) {
+	// TODO: lock inventory
+	item, err := user.GetItem(bagID, slot)
+	if err != nil {
+		return nil, err
+	}
+	stone, ok := item.(*sworld.PortalStone)
+	if !ok {
+		return nil, ErrWrongItem
 	}
 
-	// TODO: if a stoneID is given, use that stone from the user inventory
-	// Also, we could receive the coordinates of the item (bag, slot), instead of the ID
-	// or we can just search everywhere until we find that stone
+	portal, err := sworld.OpenPortal(user, *stone, func(portal *sworld.Portal) {
+		log.Printf("Portal closed: %s\n", portal.ID)
+		delete(s.portals, portal.ID)
+	})
+	if err != nil {
+		return portal, err
+	}
+	err = user.DropItem(bagID, slot)
+	// TODO: unlock inventory
+	if err != nil {
+		// TODO: if an error occurs here, we should close the portal
+		return nil, err
+	}
+
+	log.Printf("Portal open: %s\n", portal.ID)
+
+	sportal := &sPortal{
+		p: portal,
+	}
+
+	s.portals[sportal.p.ID] = sportal
+
+	return sportal.p, nil
+}
+
+func (s *swService) OpenDefaultPortal(user *sworld.User) (*sworld.Portal, error) {
 	stone := s.defaultStone(user)
 
 	portal, err := sworld.OpenPortal(user, stone, func(portal *sworld.Portal) {

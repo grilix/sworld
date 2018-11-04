@@ -24,9 +24,7 @@ var (
 )
 
 func openPortal(ctx context.Context, client *Client) (server.OpenPortalResponse, error) {
-	req := server.OpenPortalRequest{
-		StoneID: "",
-	}
+	req := server.OpenPortalRequest{}
 
 	res, err := client.e.OpenPortalEndpoint(ctx, req)
 	if err != nil {

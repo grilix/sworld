@@ -16,7 +16,13 @@ type PortalDetails struct {
 
 // OpenPortalRequest holds the parameters for the new portal
 type OpenPortalRequest struct {
-	StoneID string `json:"stone_id"`
+	StoneLocation *ItemLocation `json:"stone_location"`
+}
+
+// OpenPortalResponse holds the result of creating a portal
+type OpenPortalResponse struct {
+	Portal *PortalDetails `json:"portal,omitempty"`
+	Error  string         `json:"error,omitempty"`
 }
 
 // ViewPortalRequest represents a request for viewing a portal
@@ -27,12 +33,6 @@ type ViewPortalRequest struct {
 // ViewPortalResponse represents a response with the portal details
 type ViewPortalResponse struct {
 	Portal *PortalDetails `json:"portal"`
-}
-
-// OpenPortalResponse holds the result of creating a portal
-type OpenPortalResponse struct {
-	Portal *PortalDetails `json:"portal,omitempty"`
-	Error  string         `json:"error,omitempty"`
 }
 
 // ListPortalsRequest represents a request for listing the portals

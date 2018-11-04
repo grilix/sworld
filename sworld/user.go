@@ -43,6 +43,31 @@ func (u *User) TakeCharacterItem(characterID string, bagID, slot int) error {
 	return nil
 }
 
+// DropItem drops an item that is at a given location
+func (u User) DropItem(bagID, slot int) error {
+	if bagID > len(u.Bags) {
+		return ErrInvalidBag
+	}
+	bag := u.Bags[bagID]
+
+	_, err := bag.DropItem(slot)
+	return err
+}
+
+// GetItem returns the item at a given location
+func (u User) GetItem(bagID, slot int) (Item, error) {
+	if bagID > len(u.Bags) {
+		return nil, ErrInvalidBag
+	}
+	bag := u.Bags[bagID]
+	item, err := bag.GetItem(slot)
+	if err != nil {
+		return nil, err
+	}
+
+	return item, nil
+}
+
 func (u User) findEmptyBagSlot(item Item) (int, int, error) {
 	for id, bag := range u.Bags {
 		slot, err := bag.FindEmptySlot(item)

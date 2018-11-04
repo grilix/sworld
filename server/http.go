@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/go-kit/kit/auth/jwt"
@@ -170,8 +169,8 @@ func OpenPortalHTTPServer(endpoints Endpoints, options []httptransport.ServerOpt
 	return httptransport.NewServer(endpoints.OpenPortalEndpoint,
 		func(_ context.Context, r *http.Request) (request interface{}, err error) {
 			var req OpenPortalRequest
-			if e := json.NewDecoder(r.Body).Decode(&req); e != nil {
-				return nil, e
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				return nil, err
 			}
 
 			return req, nil
@@ -407,39 +406,19 @@ func ViewCharacterHTTPClient(tgt *url.URL, options []httptransport.ClientOption)
 func TakeCharacterItemHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
 	return httptransport.NewServer(endpoints.TakeCharacterItemEndpoint,
 		func(_ context.Context, r *http.Request) (request interface{}, err error) {
-			query := r.URL.Query()
 			vars := mux.Vars(r)
 			id, ok := vars["id"]
 			if !ok {
 				return nil, ErrBadRouting
 			}
-			varBagID := query.Get("bagid")
-			if varBagID == "" {
-				// FIXME: This is when the param is empty
-				return nil, ErrBadRouting
-			}
-			varSlot := query.Get("slot")
-			if varSlot == "" {
-				// FIXME: This is when the param is empty
-				return nil, ErrBadRouting
-			}
 
-			bagID, err := strconv.Atoi(varBagID)
-			if err != nil {
-				// FIXME: This is when bagid is not a number
-				return nil, ErrBadRouting
+			var req TakeCharacterItemRequest
+			if e := json.NewDecoder(r.Body).Decode(&req); e != nil {
+				return nil, e
 			}
-			slot, err := strconv.Atoi(varSlot)
-			if err != nil {
-				// FIXME: This is when slot is not a number
-				return nil, ErrBadRouting
-			}
+			req.CharacterID = id
 
-			return TakeCharacterItemRequest{
-				CharacterID: id,
-				BagID:       bagID,
-				Slot:        slot,
-			}, nil
+			return req, nil
 		},
 		encodeResponse,
 		options...,
@@ -454,10 +433,8 @@ func TakeCharacterItemHTTPClient(tgt *url.URL, options []httptransport.ClientOpt
 			if !ok {
 				panic("Wrong request type")
 			}
-			panic("Not implemented")
-			// TODO: Add bagid and slot
-			req.URL.Path = fmt.Sprintf("/api/v1/characters/%s/drop", dropReq.CharacterID)
-			return encodeRequest(ctx, req, nil)
+			req.URL.Path = fmt.Sprintf("/api/v1/characters/%s/take", dropReq.CharacterID)
+			return encodeRequest(ctx, req, req)
 		},
 		func(_ context.Context, resp *http.Response) (interface{}, error) {
 			var response TakeCharacterItemResponse
@@ -472,39 +449,18 @@ func TakeCharacterItemHTTPClient(tgt *url.URL, options []httptransport.ClientOpt
 func DropCharacterItemHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
 	return httptransport.NewServer(endpoints.DropCharacterItemEndpoint,
 		func(_ context.Context, r *http.Request) (request interface{}, err error) {
-			query := r.URL.Query()
 			vars := mux.Vars(r)
 			id, ok := vars["id"]
 			if !ok {
 				return nil, ErrBadRouting
 			}
-			varBagID := query.Get("bagid")
-			if varBagID == "" {
-				// FIXME: This is when the param is empty
-				return nil, ErrBadRouting
+			var req DropCharacterItemRequest
+			if e := json.NewDecoder(r.Body).Decode(&req); e != nil {
+				return nil, e
 			}
-			varSlot := query.Get("slot")
-			if varSlot == "" {
-				// FIXME: This is when the param is empty
-				return nil, ErrBadRouting
-			}
+			req.CharacterID = id
 
-			bagID, err := strconv.Atoi(varBagID)
-			if err != nil {
-				// FIXME: This is when bagid is not a number
-				return nil, ErrBadRouting
-			}
-			slot, err := strconv.Atoi(varSlot)
-			if err != nil {
-				// FIXME: This is when slot is not a number
-				return nil, ErrBadRouting
-			}
-
-			return DropCharacterItemRequest{
-				CharacterID: id,
-				BagID:       bagID,
-				Slot:        slot,
-			}, nil
+			return req, nil
 		},
 		encodeResponse,
 		options...,
@@ -519,10 +475,8 @@ func DropCharacterItemHTTPClient(tgt *url.URL, options []httptransport.ClientOpt
 			if !ok {
 				panic("Wrong request type")
 			}
-			panic("Not implemented")
-			// TODO: Add bagid and slot
 			req.URL.Path = fmt.Sprintf("/api/v1/characters/%s/drop", dropReq.CharacterID)
-			return encodeRequest(ctx, req, nil)
+			return encodeRequest(ctx, req, dropReq)
 		},
 		func(_ context.Context, resp *http.Response) (interface{}, error) {
 			var response DropCharacterItemResponse
