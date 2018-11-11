@@ -2,6 +2,7 @@ package sworld
 
 import (
 	"testing"
+	"time"
 )
 
 func TestEncounterEvent(t *testing.T) {
@@ -10,10 +11,40 @@ func TestEncounterEvent(t *testing.T) {
 		NewStandardBag(2),
 	}
 	char := Character{Bags: bags}
-	itemEvent := PortalEvent{
+	itemEvent := &PortalEvent{
 		Item: &PortalStone{Level: 2},
 	}
 	char.EncounterEvent(itemEvent)
+}
+
+func TestAvailableSkill(t *testing.T) {
+	char := &Character{
+		Health: 100,
+		Skills: make([]Skill, 2),
+	}
+
+	s1 := NewHitSkill(char)
+	s2 := NewHitSkill(char)
+
+	char.Skills[0] = s1
+	char.Skills[1] = s2
+
+	available := char.AvailableSkill()
+
+	if available == nil {
+		t.Fatal("Expected AvailableSkill to return a skill")
+	}
+
+	s1.cooldown = time.Minute
+	s2.cooldown = time.Minute
+	s1.lastUse = time.Now()
+	s2.lastUse = time.Now()
+
+	available = char.AvailableSkill()
+
+	if available != nil {
+		t.Fatal("Expected AvailableSkill to not return a skill, got", available)
+	}
 }
 
 func TestPickupItem(t *testing.T) {

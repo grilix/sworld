@@ -31,6 +31,13 @@ type Bag interface {
 	FindEmptySlot(item Item) (int, error)
 	DropItem(slot int) (Item, error)
 	Items() []Item
+	Empty()
+}
+
+// ItemLocation represents the location of an item
+type ItemLocation struct {
+	BagID int
+	Slot  int
 }
 
 // StandardBag is the main bag type
@@ -45,6 +52,14 @@ func NewStandardBag(capacity int) *StandardBag {
 	}
 }
 
+// SameAs compares the ItemLocation to another
+func (i ItemLocation) SameAs(location ItemLocation) bool {
+	if i.BagID == location.BagID {
+		return i.Slot == location.Slot
+	}
+	return false
+}
+
 // GetItem returns the item that is at a given slot
 func (b StandardBag) GetItem(slot int) (Item, error) {
 	if slot >= len(b.items) {
@@ -55,6 +70,15 @@ func (b StandardBag) GetItem(slot int) (Item, error) {
 		return nil, ErrEmptyBagSlot
 	}
 	return item, nil
+}
+
+// Empty drops everything from the bag
+func (b *StandardBag) Empty() {
+	for slot := range b.items {
+		if b.items[slot] != nil {
+			b.items[slot] = nil
+		}
+	}
 }
 
 // DropItem removes an item from the bag

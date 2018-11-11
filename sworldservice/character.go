@@ -5,21 +5,21 @@ import (
 )
 
 func (s *swService) createCharacter(user *sUser) *sworld.Character {
-	health := 10000
-
-	character := &sworld.Character{
-		ID:        sworld.RandomID(16),
-		Level:     1,
-		Health:    health,
-		MaxHealth: health,
-		Gold:      0,
-		Exploring: false,
-		User:      user.u,
-		Bags: []sworld.Bag{
-			sworld.NewStandardBag(10),
-		},
-	}
+	character := sworld.NewCharacter()
+	character.User = user.u
 	user.u.Characters = append(user.u.Characters, character)
+
+	s.characters[character.ID] = character
+
+	return character
+}
+
+func (s *swService) respawnCharacter(user *sworld.User, character *sworld.Character) *sworld.Character {
+	delete(s.characters, character.ID)
+
+	character = sworld.NewCharacter()
+	character.User = user
+	user.Characters = append(user.Characters, character)
 
 	s.characters[character.ID] = character
 

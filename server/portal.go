@@ -9,9 +9,21 @@ type ZoneDetails struct {
 // PortalDetails holds the details for a portal
 type PortalDetails struct {
 	ID       string      `json:"id"`
-	Duration string      `json:"duration"`
+	Duration int         `json:"duration"`
+	TimeLeft int         `json:"time_left"`
 	Level    int         `json:"level"`
 	Zone     ZoneDetails `json:"zone"`
+}
+
+// MergeStonesRequest represents a request for merging stones
+type MergeStonesRequest struct {
+	SourceLocation ItemLocation `json:"source"`
+	TargetLocation ItemLocation `json:"target"`
+}
+
+// MergeStonesResponse represents the response of merging stones
+type MergeStonesResponse struct {
+	ResultLocation ItemLocation `json:"location"`
 }
 
 // OpenPortalRequest holds the parameters for the new portal

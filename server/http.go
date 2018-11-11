@@ -42,6 +42,7 @@ func MakeHTTPServer(s sworldservice.Service, logger klog.Logger) http.Handler {
 
 	r.Methods("POST").Path("/api/v1/auth").Handler(AuthenticateHTTPServer(e, options))
 	r.Methods("GET").Path("/api/v1/inventory").Handler(ViewUserInventoryHTTPServer(e, options))
+	r.Methods("POST").Path("/api/v1/inventory/merge-stones").Handler(MergeStonesHTTPServer(e, options))
 
 	r.Methods("GET").Path("/api/v1/characters").Handler(ListCharactersHTTPServer(e, options))
 	r.Methods("GET").Path("/api/v1/characters/{id}").Handler(ViewCharacterHTTPServer(e, options))
@@ -101,6 +102,7 @@ func MakeHTTPClientEndpoints(instance string) (Endpoints, error) {
 	return Endpoints{
 		AuthenticateEndpoint:      AuthenticateHTTPClient(tgt, options),
 		ViewUserInventoryEndpoint: ViewUserInventoryHTTPClient(tgt, options),
+		MergeStonesEndpoint:       MergeStonesHTTPClient(tgt, options),
 
 		ViewCharacterEndpoint:          ViewCharacterHTTPClient(tgt, options),
 		ListCharactersEndpoint:         ListCharactersHTTPClient(tgt, options),
@@ -438,6 +440,42 @@ func TakeCharacterItemHTTPClient(tgt *url.URL, options []httptransport.ClientOpt
 		},
 		func(_ context.Context, resp *http.Response) (interface{}, error) {
 			var response TakeCharacterItemResponse
+			err := json.NewDecoder(resp.Body).Decode(&response)
+			return response, err
+		},
+		options...,
+	).Endpoint()
+}
+
+// MergeStonesHTTPServer serves the MergeStonesEndpoint
+func MergeStonesHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
+	return httptransport.NewServer(endpoints.MergeStonesEndpoint,
+		func(_ context.Context, r *http.Request) (request interface{}, err error) {
+			var req MergeStonesRequest
+			if e := json.NewDecoder(r.Body).Decode(&req); e != nil {
+				return nil, e
+			}
+
+			return req, nil
+		},
+		encodeResponse,
+		options...,
+	)
+}
+
+// MergeStonesHTTPClient calls the ViewCharacterEndpoint
+func MergeStonesHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
+	return httptransport.NewClient("GET", tgt,
+		func(ctx context.Context, req *http.Request, request interface{}) error {
+			mergeReq, ok := request.(MergeStonesRequest)
+			if !ok {
+				panic("Wrong request type")
+			}
+			req.URL.Path = "/api/v1/inventory/merge-stones"
+			return encodeRequest(ctx, req, mergeReq)
+		},
+		func(_ context.Context, resp *http.Response) (interface{}, error) {
+			var response MergeStonesResponse
 			err := json.NewDecoder(resp.Body).Decode(&response)
 			return response, err
 		},

@@ -8,7 +8,7 @@ import (
 	stdjwt "github.com/dgrijalva/jwt-go"
 	"github.com/go-kit/kit/endpoint"
 	"github.com/grilix/sworld/sworld"
-	"github.com/grilix/sworld/sworldservice"
+	svc "github.com/grilix/sworld/sworldservice"
 )
 
 var (
@@ -30,6 +30,7 @@ type WrongRequestError struct {
 type Endpoints struct {
 	AuthenticateEndpoint      endpoint.Endpoint
 	ViewUserInventoryEndpoint endpoint.Endpoint
+	MergeStonesEndpoint       endpoint.Endpoint
 
 	ViewCharacterEndpoint          endpoint.Endpoint
 	ListCharactersEndpoint         endpoint.Endpoint
@@ -44,10 +45,11 @@ type Endpoints struct {
 }
 
 // MakeServerEndpoints creates an endpoints list for a server
-func MakeServerEndpoints(s sworldservice.Service) Endpoints {
+func MakeServerEndpoints(s svc.Service) Endpoints {
 	return Endpoints{
 		AuthenticateEndpoint:      MakeAuthenticateEndpoint(s),
 		ViewUserInventoryEndpoint: authenticatedEndpoint(s, MakeViewUserInventoryEndpoint),
+		MergeStonesEndpoint:       authenticatedEndpoint(s, MakeMergeStonesEndpoint),
 
 		ViewCharacterEndpoint:          authenticatedEndpoint(s, MakeViewCharacterEndpoint),
 		ListCharactersEndpoint:         authenticatedEndpoint(s, MakeListCharactersEndpoint),
@@ -67,7 +69,7 @@ func (e WrongRequestError) Error() string {
 }
 
 // MakeAuthenticateEndpoint creates the Authenticate endpoint
-func MakeAuthenticateEndpoint(s sworldservice.Service) endpoint.Endpoint {
+func MakeAuthenticateEndpoint(s svc.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(AuthenticateRequest)
 		user, err := s.Authenticate(ctx, req.Credentials)
@@ -97,7 +99,7 @@ func MakeAuthenticateEndpoint(s sworldservice.Service) endpoint.Endpoint {
 }
 
 // MakeViewCharacterEndpoint creates the ViewCharacter endopint
-func MakeViewCharacterEndpoint(s sworldservice.Service) endpoint.Endpoint {
+func MakeViewCharacterEndpoint(s svc.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		user, ok := ctx.Value(ctxUserKey).(*sworld.User)
 		if !ok {
@@ -117,6 +119,8 @@ func MakeViewCharacterEndpoint(s sworldservice.Service) endpoint.Endpoint {
 		return ViewCharacterResponse{
 			Character: &CharacterDetails{
 				ID:        character.ID,
+				Health:    character.Health,
+				MaxHealth: character.MaxHealth,
 				Exploring: character.Exploring,
 			},
 		}, nil
@@ -124,7 +128,7 @@ func MakeViewCharacterEndpoint(s sworldservice.Service) endpoint.Endpoint {
 }
 
 // MakeListCharactersEndpoint creates the ListCharacters endpoint
-func MakeListCharactersEndpoint(s sworldservice.Service) endpoint.Endpoint {
+func MakeListCharactersEndpoint(s svc.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		user, ok := ctx.Value(ctxUserKey).(*sworld.User)
 		if !ok {
@@ -140,6 +144,8 @@ func MakeListCharactersEndpoint(s sworldservice.Service) endpoint.Endpoint {
 		for _, character := range characters {
 			charactersList = append(charactersList, &CharacterDetails{
 				ID:        character.ID,
+				Health:    character.Health,
+				MaxHealth: character.MaxHealth,
 				Exploring: character.Exploring,
 			})
 		}
@@ -151,7 +157,7 @@ func MakeListCharactersEndpoint(s sworldservice.Service) endpoint.Endpoint {
 }
 
 // MakeViewUserInventoryEndpoint creates the ViewUserInventory endpoint
-func MakeViewUserInventoryEndpoint(s sworldservice.Service) endpoint.Endpoint {
+func MakeViewUserInventoryEndpoint(s svc.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		user, ok := ctx.Value(ctxUserKey).(*sworld.User)
 		if !ok {
@@ -171,8 +177,41 @@ func MakeViewUserInventoryEndpoint(s sworldservice.Service) endpoint.Endpoint {
 	}
 }
 
+// MakeMergeStonesEndpoint creates the endpoint for dropping character items
+func MakeMergeStonesEndpoint(s svc.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		user, ok := ctx.Value(ctxUserKey).(*sworld.User)
+		if !ok {
+			return MergeStonesResponse{}, ErrNoAccount
+		}
+
+		mergeReq, ok := request.(MergeStonesRequest)
+		if !ok {
+			return MergeStonesResponse{}, WrongRequestError{Endpoint: "MergeStones"}
+		}
+
+		source := sworld.ItemLocation{
+			BagID: mergeReq.SourceLocation.BagID,
+			Slot:  mergeReq.SourceLocation.Slot,
+		}
+		target := sworld.ItemLocation{
+			BagID: mergeReq.TargetLocation.BagID,
+			Slot:  mergeReq.TargetLocation.Slot,
+		}
+
+		location, err := s.MergeStones(user, source, target)
+
+		return MergeStonesResponse{
+			ResultLocation: ItemLocation{
+				BagID: location.BagID,
+				Slot:  location.Slot,
+			},
+		}, err
+	}
+}
+
 // MakeViewCharacterInventoryEndpoint creates the ViewCharacterInventory endpoint
-func MakeViewCharacterInventoryEndpoint(s sworldservice.Service) endpoint.Endpoint {
+func MakeViewCharacterInventoryEndpoint(s svc.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		// TODO: Do we care about the user here?
 		//
@@ -202,7 +241,7 @@ func MakeViewCharacterInventoryEndpoint(s sworldservice.Service) endpoint.Endpoi
 }
 
 // MakeListPortalsEndpoint creates the ListPortals endpoint
-func MakeListPortalsEndpoint(s sworldservice.Service) endpoint.Endpoint {
+func MakeListPortalsEndpoint(s svc.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		user, ok := ctx.Value(ctxUserKey).(*sworld.User)
 		if !ok {
@@ -218,7 +257,8 @@ func MakeListPortalsEndpoint(s sworldservice.Service) endpoint.Endpoint {
 		for _, portal := range portals {
 			portalsList = append(portalsList, &PortalDetails{
 				ID:       portal.ID,
-				Duration: portal.PortalStone.Duration.String(),
+				Duration: int(portal.PortalStone.Duration.Seconds()),
+				TimeLeft: int(portal.TimeLeft().Seconds()),
 				Level:    portal.PortalStone.Level,
 				Zone: ZoneDetails{
 					ID:   portal.PortalStone.Zone.ID,
@@ -234,7 +274,7 @@ func MakeListPortalsEndpoint(s sworldservice.Service) endpoint.Endpoint {
 }
 
 // MakeViewPortalEndpoint creates the ViewPortal endpoint
-func MakeViewPortalEndpoint(s sworldservice.Service) endpoint.Endpoint {
+func MakeViewPortalEndpoint(s svc.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		// TODO: Do we care about the user here?
 		//
@@ -253,7 +293,8 @@ func MakeViewPortalEndpoint(s sworldservice.Service) endpoint.Endpoint {
 		return ViewPortalResponse{
 			Portal: &PortalDetails{
 				ID:       portal.ID,
-				Duration: portal.PortalStone.Duration.String(),
+				Duration: int(portal.PortalStone.Duration.Seconds()),
+				TimeLeft: int(portal.TimeLeft().Seconds()),
 				Level:    portal.PortalStone.Level,
 				Zone: ZoneDetails{
 					ID:   portal.PortalStone.Zone.ID,
@@ -265,7 +306,7 @@ func MakeViewPortalEndpoint(s sworldservice.Service) endpoint.Endpoint {
 }
 
 // MakeTakeCharacterItemEndpoint creates the endpoint for dropping character items
-func MakeTakeCharacterItemEndpoint(s sworldservice.Service) endpoint.Endpoint {
+func MakeTakeCharacterItemEndpoint(s svc.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		user, ok := ctx.Value(ctxUserKey).(*sworld.User)
 		if !ok {
@@ -284,7 +325,7 @@ func MakeTakeCharacterItemEndpoint(s sworldservice.Service) endpoint.Endpoint {
 }
 
 // MakeDropCharacterItemEndpoint creates the endpoint for dropping character items
-func MakeDropCharacterItemEndpoint(s sworldservice.Service) endpoint.Endpoint {
+func MakeDropCharacterItemEndpoint(s svc.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		user, ok := ctx.Value(ctxUserKey).(*sworld.User)
 		if !ok {
@@ -303,7 +344,7 @@ func MakeDropCharacterItemEndpoint(s sworldservice.Service) endpoint.Endpoint {
 }
 
 // MakeExplorePortalEndpoint creates the endpoint for exploring a portal
-func MakeExplorePortalEndpoint(s sworldservice.Service) endpoint.Endpoint {
+func MakeExplorePortalEndpoint(s svc.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		user, ok := ctx.Value(ctxUserKey).(*sworld.User)
 		if !ok {
@@ -322,7 +363,7 @@ func MakeExplorePortalEndpoint(s sworldservice.Service) endpoint.Endpoint {
 }
 
 // MakeOpenPortalEndpoint makes the endpoint for creating a portal
-func MakeOpenPortalEndpoint(s sworldservice.Service) endpoint.Endpoint {
+func MakeOpenPortalEndpoint(s svc.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		user, ok := ctx.Value(ctxUserKey).(*sworld.User)
 		if !ok {
@@ -350,7 +391,8 @@ func MakeOpenPortalEndpoint(s sworldservice.Service) endpoint.Endpoint {
 		return OpenPortalResponse{
 			Portal: &PortalDetails{
 				ID:       portal.ID,
-				Duration: portal.PortalStone.Duration.String(),
+				Duration: int(portal.PortalStone.Duration.Seconds()),
+				TimeLeft: int(portal.TimeLeft().Seconds()),
 				Level:    portal.PortalStone.Level,
 				Zone: ZoneDetails{
 					ID:   portal.PortalStone.Zone.ID,

@@ -19,8 +19,10 @@ var (
 )
 
 type sCharacter struct {
-	c *sworld.Character
-	u *sUser
+	c                *sworld.Character
+	u                *sUser
+	exploringPortal  *sworld.Portal
+	exploredDIstance int
 }
 
 type sPortal struct {
@@ -38,6 +40,7 @@ type Service interface {
 	Authenticate(ctx context.Context, c Credentials) (*sworld.User, error)
 	FindUser(id string) *sworld.User
 	ViewUserInventory(user *sworld.User) ([]sworld.Bag, error)
+	MergeStones(user *sworld.User, source sworld.ItemLocation, target sworld.ItemLocation) (sworld.ItemLocation, error)
 
 	ListCharacters(user *sworld.User) ([]*sworld.Character, error)
 	ViewCharacterInventory(characterID string) ([]sworld.Bag, error)
@@ -56,6 +59,7 @@ type swService struct {
 	portals               map[string]*sPortal
 	defaultPortalDuration time.Duration
 	characters            map[string]*sworld.Character
+	defaultZone           *sworld.Zone
 }
 
 // NewService creates the service
@@ -66,12 +70,25 @@ func NewService() Service {
 		characters: make(map[string]*sworld.Character),
 		// TODO: this should be on settings
 		defaultPortalDuration: time.Second * 10,
+		defaultZone: &sworld.Zone{
+			ID:   sworld.RandomID(16),
+			Name: "Forest",
+			DropRate: sworld.DropRate{
+				Gold:    8,
+				Enemy:   20,
+				Item:    20,
+				Nothing: 60,
+			},
+		},
 	}
 }
 
 func (s *swService) TakeCharacterItem(user *sworld.User, characterID string, bagID, slot int) error {
 	// TODO: Fail if the character is exploring
-	return user.TakeCharacterItem(characterID, bagID, slot)
+	return user.TakeCharacterItem(characterID, sworld.ItemLocation{
+		BagID: bagID,
+		Slot:  slot,
+	})
 }
 
 func (s *swService) DropCharacterItem(user *sworld.User, characterID string, bagID, slot int) error {
@@ -83,6 +100,11 @@ func (s *swService) DropCharacterItem(user *sworld.User, characterID string, bag
 	_, err = character.DropItem(bagID, slot)
 
 	return err
+}
+
+func (s *swService) MergeStones(user *sworld.User, source sworld.ItemLocation, target sworld.ItemLocation) (sworld.ItemLocation, error) {
+	// FIXME: call user.MergeStones directly?
+	return user.MergeStones(source, target)
 }
 
 func (s *swService) ViewUserInventory(user *sworld.User) ([]sworld.Bag, error) {
@@ -147,9 +169,6 @@ func (s *swService) ExplorePortal(user *sworld.User, portalID, characterID strin
 	if sportal == nil {
 		return ErrPortalNotFound
 	}
-	if !sportal.p.IsOpen {
-		return ErrPortalIsClosed
-	}
 	if sportal.p.User.ID != user.ID {
 		return ErrCantEnterPortal
 	}
@@ -158,11 +177,13 @@ func (s *swService) ExplorePortal(user *sworld.User, portalID, characterID strin
 		return err
 	}
 
-	if character.Exploring {
-		return ErrCharacterBusy
+	exploration, err := character.EnterPortal(sportal.p)
+	if err != nil {
+		return err
 	}
 
-	s.handleExplore(sportal.p, character)
+	s.handleCharacterAttack(exploration)
+	s.handleCharacterMove(exploration)
 
 	// TODO: What's this?
 	sportal.c = &sCharacter{
@@ -175,7 +196,7 @@ func (s *swService) ExplorePortal(user *sworld.User, portalID, characterID strin
 
 func (s *swService) OpenPortalWithStone(user *sworld.User, bagID, slot int) (*sworld.Portal, error) {
 	// TODO: lock inventory
-	item, err := user.GetItem(bagID, slot)
+	item, err := user.GetItem(sworld.ItemLocation{BagID: bagID, Slot: slot})
 	if err != nil {
 		return nil, err
 	}

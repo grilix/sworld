@@ -22,6 +22,8 @@ type ItemLocation struct {
 // CharacterDetails represents a character in a response
 type CharacterDetails struct {
 	ID        string `json:"id"`
+	Health    int    `json:"health"`
+	MaxHealth int    `json:"max_health"`
 	Exploring bool   `json:"exploring"`
 }
 

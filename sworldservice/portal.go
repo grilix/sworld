@@ -2,80 +2,98 @@ package sworldservice
 
 import (
 	"errors"
-	"math/rand"
+	"log"
 	"time"
 
 	"github.com/grilix/sworld/sworld"
 )
 
 var (
-	// ErrCharacterBusy means the character is busy and cannot perform the requested task
-	ErrCharacterBusy = errors.New("The character is busy")
 	// ErrCantEnterPortal means the user is not allowed to enter that portal
 	ErrCantEnterPortal = errors.New("The portal is not accessible")
 	// ErrPortalNotFound means the portal does not exist
 	ErrPortalNotFound = errors.New("The portal was not found")
-	// ErrPortalIsClosed means the portal is closed
-	ErrPortalIsClosed = errors.New("The portal is already closed")
 )
-
-// TODO: this stuff should be handled by some sort of settings
-func defaultZone(user *sworld.User) *sworld.Zone {
-	return &sworld.Zone{
-		ID:   sworld.RandomID(16),
-		Name: "Forest",
-		DropRate: sworld.DropRate{
-			Gold:    8,
-			Enemy:   20,
-			Item:    20,
-			Nothing: 60,
-		},
-	}
-}
 
 func (s *swService) defaultStone(user *sworld.User) sworld.PortalStone {
 	return sworld.PortalStone{
 		Level:    1,
-		Zone:     defaultZone(user),
+		Zone:     s.defaultZone,
 		Duration: s.defaultPortalDuration,
 	}
 }
 
-func (s *swService) handleExplore(portal *sworld.Portal, character *sworld.Character) {
-	if character.Exploring {
-		panic("explorePortal received a character that is already exploring")
-	}
-
-	if portal.C == nil {
+func (s *swService) handleCharacterMove(exploration *sworld.Explorer) {
+	// TODO: Not sure what was this for
+	if exploration.Portal.C == nil {
 		panic("explorePortal received a portal that is not initialized")
 	}
 
-	character.Exploring = true
-
-	source := rand.NewSource(time.Now().UnixNano())
-	seed := rand.New(source)
-
 	go func() {
-		// TODO: Not sure what to do here, we could probably use a character speed or something
-		// I didn't want the portal to have a predefined interval for events, but idk
-		exploreTimer := time.NewTicker(time.Second * 1)
+		// TODO: define speed somehow
+		moveTimer := time.NewTicker(time.Second * 1)
 		defer func() {
 			// Cleanup sCharacter
-			exploreTimer.Stop()
-			character.ReturnToTown(portal)
+			moveTimer.Stop()
+
+			// FIXME: Handle this somewhere else
+			if exploration.Character.Health > 0 {
+				exploration.Character.ReturnToTown(exploration.Portal)
+			} else {
+				//
+			}
 		}()
 
 		for {
 			select {
-			case <-exploreTimer.C:
-				event := portal.RandomEvent(seed)
-				err := character.EncounterEvent(event)
-				if err != nil {
-					// TODO:
-				}
+			case <-moveTimer.C:
+				enemy := exploration.ClosestEnemy()
 
-			case _, _ = <-portal.C:
-				// Portal closed
+				if enemy == nil {
+					_ = exploration.Advance()
+					log.Printf(" Character: Advancing, now at %d\n", exploration.Position())
+				}
+			case _, _ = <-exploration.Character.D:
+				return
+			case _, _ = <-exploration.Portal.C:
+				return
+			}
+		}
+	}()
+}
+
+func (s *swService) handleCharacterAttack(exploration *sworld.Explorer) {
+	// TODO: Not sure what was this for
+	if exploration.Portal.C == nil {
+		panic("explorePortal received a portal that is not initialized")
+	}
+
+	go func() {
+		// TODO: define speed somehow
+		attackTimer := time.NewTicker(time.Millisecond * 500)
+		defer func() {
+			// Cleanup sCharacter
+			attackTimer.Stop()
+		}()
+
+		for {
+			select {
+			case <-attackTimer.C:
+				character := exploration.Character
+				enemy := exploration.ClosestEnemy()
+
+				if enemy != nil {
+					skill := character.AvailableSkill()
+					if skill != nil {
+						log.Printf(" Character: Attacking %v\n", enemy)
+						skill.Use(enemy)
+					} else {
+						log.Printf(" Character: No skills to attack!\n")
+					}
+				}
+			case _, _ = <-exploration.Character.D:
+				return
+			case _, _ = <-exploration.Portal.C:
 				return
 			}
 		}
