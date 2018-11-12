@@ -80,8 +80,9 @@ func (s PortalStone) Merge(stone PortalStone) (PortalStone, error) {
 	return PortalStone{}, ErrIncompatibleStones
 }
 
-func (p Portal) randomPortalStone() *PortalStone {
-	maxDuration := int(p.PortalStone.Duration.Seconds() * 1.5)
+// RandomPortalStone returns a random portal stone based on current portal
+func (p Portal) RandomPortalStone() *PortalStone {
+	maxDuration := int(p.PortalStone.Duration.Seconds() * 1.3)
 	minDuration := int(p.PortalStone.Duration.Seconds() * 0.8)
 	if maxDuration < 10 {
 		maxDuration = 10

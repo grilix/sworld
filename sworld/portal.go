@@ -1,28 +1,11 @@
 package sworld
 
 import (
-	"log"
 	"math/rand"
 	"time"
 
 	"github.com/encryptio/alias"
 )
-
-// DropRate represents the rates for drops
-type DropRate struct {
-	Gold    float64
-	Enemy   float64
-	Item    float64
-	Nothing float64
-}
-
-// Zone defines the type of enemies that will be found
-// It's the base for creating a portal
-type Zone struct {
-	ID       string
-	Name     string
-	DropRate DropRate
-}
 
 // Portal is an instance of a Zone, where players can teleport to
 type Portal struct {
@@ -40,7 +23,8 @@ type Portal struct {
 	startedAt  time.Time
 	enemies    []*Enemy
 	explorers  []*Explorer
-	eventsRate *alias.Alias
+	eventsRate *alias.Alias // TODO: rename eventDrops
+	drops      *alias.Alias
 	cleared    int
 	seed       *rand.Rand
 }
@@ -58,15 +42,8 @@ func (p *Portal) TimeLeft() time.Duration {
 	return p.PortalStone.Duration - time.Since(p.startedAt)
 }
 
-func (p *Portal) randomItemEvent() *PortalEvent {
-	// TODO: Random item
-	stone := p.randomPortalStone()
-
-	log.Printf("   -> Item spawn %T%v", stone, stone)
-	return &PortalEvent{Item: stone}
-}
-
-func (p *Portal) randomEnemyEvent(position int) *PortalEvent {
+// RandomEnemyEvent returns a random enemy
+func (p *Portal) RandomEnemyEvent(position int) *PortalEvent {
 	if p.PortalStone.Level < 1 {
 		return nil
 	}
@@ -94,40 +71,6 @@ func (p *Portal) DeadEnemies() []*Enemy {
 	return enemies
 }
 
-// RandomEvent creates a random event
-func (p *Portal) RandomEvent(position int) *PortalEvent {
-	eventID := int(p.eventsRate.Gen(p.seed))
-	if p.cleared < position {
-		p.cleared = position
-	}
-
-	// TODO
-	switch eventID {
-	case 0: // Gold
-		return &PortalEvent{Gold: 1}
-		//c.gold++
-	case 1: // Enemy
-		event := p.randomEnemyEvent(position)
-		//p.enemies = append(p.enemies, event.Enemy)
-		//c.enemies++
-		return event
-	case 2: // Item
-		return p.randomItemEvent()
-	}
-
-	return nil
-}
-
-// GetRates returns an alias.Alias instance for drop rates
-func (r DropRate) GetRates() (*alias.Alias, error) {
-	return alias.New([]float64{
-		r.Gold,
-		r.Enemy,
-		r.Item,
-		r.Nothing,
-	})
-}
-
 // OpenPortal opens a portal and sets a timer for closing it
 func OpenPortal(user *User, stone PortalStone, closeFn func(*Portal)) (*Portal, error) {
 	source := rand.NewSource(time.Now().UnixNano())
@@ -143,13 +86,7 @@ func OpenPortal(user *User, stone PortalStone, closeFn func(*Portal)) (*Portal, 
 		startedAt:   time.Now(),
 	}
 
-	rate := stone.Zone.DropRate
-	events, err := rate.GetRates()
-	if err != nil {
-		// FIXME: return err instead?
-		panic("Can't initialize events")
-	}
-	p.eventsRate = events
+	stone.Zone.InitializePortal(p)
 
 	p.C = make(chan bool)
 	go func() {

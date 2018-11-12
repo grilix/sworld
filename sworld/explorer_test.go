@@ -9,8 +9,9 @@ func TestClosestEnemy(t *testing.T) {
 		PortalStone: PortalStone{Level: 1},
 		enemies:     make([]*Enemy, 0, 2),
 	}
-	portal.randomEnemyEvent(2)
-	portal.randomEnemyEvent(3)
+
+	portal.RandomEnemyEvent(2)
+	portal.RandomEnemyEvent(3)
 
 	exploration := &Explorer{
 		Portal:   portal,

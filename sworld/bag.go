@@ -45,6 +45,11 @@ type StandardBag struct {
 	items []Item
 }
 
+// Weapon represents a weapon item
+type Weapon struct {
+	Damage int
+}
+
 // NewStandardBag creates a standard bag of a given capacity
 func NewStandardBag(capacity int) *StandardBag {
 	return &StandardBag{

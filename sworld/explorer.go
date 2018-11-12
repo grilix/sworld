@@ -56,13 +56,12 @@ func (e *Explorer) Advance() *PortalEvent {
 	e.position++
 	p := e.Portal
 
-	//cleared := len(p.portalMap)
 	cleared := p.cleared
 
 	var event *PortalEvent
 
 	if cleared < e.position {
-		event = p.RandomEvent(e.position)
+		event = p.PortalStone.Zone.DropEvent(p, e.position)
 	}
 
 	if event != nil {

@@ -24,12 +24,18 @@ type StoneDetails struct {
 	Duration string      `json:"duration"`
 }
 
+// WeaponDetails holds the information about a weapon
+type WeaponDetails struct {
+	Damage int `json:"damage"`
+}
+
 // BagSlotDetails represents a bag slot on a response
 type BagSlotDetails struct {
 	// TODO:
-	Slot  int           `json:"slot"`
-	Item  string        `json:"item,omitempty"`
-	Stone *StoneDetails `json:"stone,omitempty"`
+	Slot   int            `json:"slot"`
+	Item   string         `json:"item,omitempty"`
+	Stone  *StoneDetails  `json:"stone,omitempty"`
+	Weapon *WeaponDetails `json:"weapon,omitempty"`
 }
 
 // BagDetails represents a bag in a response
@@ -63,12 +69,12 @@ type EnemyDetails struct {
 	Level     int    `json:"level"`
 }
 
-// TODO: Not sure what could be the best approach here, we'll just try every item type for now
 func bagSlotDetails(slot int, item sworld.Item) *BagSlotDetails {
 	details := &BagSlotDetails{
 		Slot: slot,
 	}
 
+	// TODO: Not sure what could be the best approach here, we'll just try every item type for now
 	stoneItem, ok := item.(*sworld.PortalStone)
 	if ok {
 		details.Item = "stone"
@@ -81,6 +87,13 @@ func bagSlotDetails(slot int, item sworld.Item) *BagSlotDetails {
 			},
 		}
 		return details
+	}
+	weaponItem, ok := item.(*sworld.Weapon)
+	if ok {
+		details.Item = "weapon"
+		details.Weapon = &WeaponDetails{
+			Damage: weaponItem.Damage,
+		}
 	}
 	return details
 }

@@ -66,16 +66,7 @@ func NewService() Service {
 		characters: make(map[string]*sworld.Character),
 		// TODO: this should be on settings
 		defaultPortalDuration: time.Second * 10,
-		defaultZone: &sworld.Zone{
-			ID:   sworld.RandomID(16),
-			Name: "Forest",
-			DropRate: sworld.DropRate{
-				Gold:    8,
-				Enemy:   20,
-				Item:    20,
-				Nothing: 60,
-			},
-		},
+		defaultZone:           createDefaultZone(),
 	}
 }
 
