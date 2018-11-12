@@ -9,16 +9,6 @@ func TestClosestEnemy(t *testing.T) {
 		PortalStone: PortalStone{Level: 1},
 		enemies:     make([]*Enemy, 0, 2),
 	}
-	// portal.enemies[0] = &Enemy{
-	//     Health:   100,
-	//     portal:   portal,
-	//     position: 2,
-	// }
-	// portal.enemies[1] = &Enemy{
-	//     Health:   100,
-	//     portal:   portal,
-	//     position: 3,
-	// }
 	portal.randomEnemyEvent(2)
 	portal.randomEnemyEvent(3)
 

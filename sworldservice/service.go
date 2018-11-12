@@ -3,7 +3,6 @@ package sworldservice
 import (
 	"context"
 	"errors"
-	"log"
 	"time"
 
 	"github.com/grilix/sworld/sworld"
@@ -16,19 +15,15 @@ var (
 	ErrPortalStoneNotFound = errors.New("The stone does not exist")
 	// ErrWrongItem is when the item is not valid for an action
 	ErrWrongItem = errors.New("The item is not valid for that action")
+	// ErrAlreadyHasCharacters is when the user already has an alive character
+	ErrAlreadyHasCharacters = errors.New("You already have characters")
+	// ErrCharacterIsDead is when the character is dead
+	ErrCharacterIsDead = errors.New("Character is dead")
 )
 
-type sCharacter struct {
-	c                *sworld.Character
-	u                *sUser
-	exploringPortal  *sworld.Portal
-	exploredDIstance int
-}
-
+// FIXME: I'd say we can get rid of these two
 type sPortal struct {
-	p      *sworld.Portal
-	c      *sCharacter
-	tClose *time.Timer
+	p *sworld.Portal
 }
 
 type sUser struct {
@@ -42,6 +37,7 @@ type Service interface {
 	ViewUserInventory(user *sworld.User) ([]sworld.Bag, error)
 	MergeStones(user *sworld.User, source sworld.ItemLocation, target sworld.ItemLocation) (sworld.ItemLocation, error)
 
+	SpawnCharacter(user *sworld.User) (*sworld.Character, error)
 	ListCharacters(user *sworld.User) ([]*sworld.Character, error)
 	ViewCharacterInventory(characterID string) ([]sworld.Bag, error)
 	DropCharacterItem(user *sworld.User, characterID string, bagID, slot int) error
@@ -97,6 +93,9 @@ func (s *swService) DropCharacterItem(user *sworld.User, characterID string, bag
 	if err != nil {
 		return err
 	}
+	if character.Health <= 0 {
+		return ErrCharacterIsDead
+	}
 	_, err = character.DropItem(bagID, slot)
 
 	return err
@@ -138,9 +137,12 @@ func (s *swService) ViewPortal(portalID string) (*sworld.Portal, error) {
 
 func (s *swService) ListPortals(user *sworld.User) ([]*sworld.Portal, error) {
 	portals := make([]*sworld.Portal, 0, len(s.portals))
+	userID := user.ID
 
 	for _, portal := range s.portals {
-		portals = append(portals, portal.p)
+		if portal.p.User.ID == userID {
+			portals = append(portals, portal.p)
+		}
 	}
 
 	return portals, nil
@@ -176,6 +178,9 @@ func (s *swService) ExplorePortal(user *sworld.User, portalID, characterID strin
 	if err != nil {
 		return err
 	}
+	if character.Health <= 0 {
+		return ErrCharacterIsDead
+	}
 
 	exploration, err := character.EnterPortal(sportal.p)
 	if err != nil {
@@ -184,12 +189,6 @@ func (s *swService) ExplorePortal(user *sworld.User, portalID, characterID strin
 
 	s.handleCharacterAttack(exploration)
 	s.handleCharacterMove(exploration)
-
-	// TODO: What's this?
-	sportal.c = &sCharacter{
-		c: character,
-		u: s.users[user.ID],
-	}
 
 	return nil
 }
@@ -204,14 +203,8 @@ func (s *swService) OpenPortalWithStone(user *sworld.User, bagID, slot int) (*sw
 	if !ok {
 		return nil, ErrWrongItem
 	}
+	portal, err := s.openPortal(user, *stone)
 
-	portal, err := sworld.OpenPortal(user, *stone, func(portal *sworld.Portal) {
-		log.Printf("Portal closed: %s\n", portal.ID)
-		delete(s.portals, portal.ID)
-	})
-	if err != nil {
-		return portal, err
-	}
 	err = user.DropItem(bagID, slot)
 	// TODO: unlock inventory
 	if err != nil {
@@ -219,34 +212,26 @@ func (s *swService) OpenPortalWithStone(user *sworld.User, bagID, slot int) (*sw
 		return nil, err
 	}
 
-	log.Printf("Portal open: %s\n", portal.ID)
-
-	sportal := &sPortal{
-		p: portal,
-	}
-
-	s.portals[sportal.p.ID] = sportal
-
-	return sportal.p, nil
+	return portal, nil
 }
 
 func (s *swService) OpenDefaultPortal(user *sworld.User) (*sworld.Portal, error) {
 	stone := s.defaultStone(user)
+	portal, err := s.openPortal(user, stone)
 
-	portal, err := sworld.OpenPortal(user, stone, func(portal *sworld.Portal) {
-		log.Printf("Portal closed: %s\n", portal.ID)
-		delete(s.portals, portal.ID)
-	})
-	if err != nil {
-		return portal, err
-	}
-	log.Printf("Portal open: %s\n", portal.ID)
+	return portal, err
+}
 
-	sportal := &sPortal{
-		p: portal,
+func (s *swService) SpawnCharacter(user *sworld.User) (*sworld.Character, error) {
+	if user.HasAliveCharacters() {
+		return nil, ErrAlreadyHasCharacters
 	}
 
-	s.portals[sportal.p.ID] = sportal
+	character := sworld.NewCharacter()
+	character.User = user
+	user.Characters = append(user.Characters, character)
 
-	return sportal.p, nil
+	s.characters[character.ID] = character
+
+	return character, nil
 }

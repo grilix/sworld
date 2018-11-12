@@ -45,6 +45,7 @@ func MakeHTTPServer(s sworldservice.Service, logger klog.Logger) http.Handler {
 	r.Methods("POST").Path("/api/v1/inventory/merge-stones").Handler(MergeStonesHTTPServer(e, options))
 
 	r.Methods("GET").Path("/api/v1/characters").Handler(ListCharactersHTTPServer(e, options))
+	r.Methods("POST").Path("/api/v1/characters").Handler(SpawnCharacterHTTPServer(e, options))
 	r.Methods("GET").Path("/api/v1/characters/{id}").Handler(ViewCharacterHTTPServer(e, options))
 	r.Methods("GET").Path("/api/v1/characters/{id}/inventory").Handler(ViewCharacterInventoryHTTPServer(e, options))
 	r.Methods("POST").Path("/api/v1/characters/{id}/drop").Handler(DropCharacterItemHTTPServer(e, options))
@@ -52,7 +53,7 @@ func MakeHTTPServer(s sworldservice.Service, logger klog.Logger) http.Handler {
 
 	r.Methods("POST").Path("/api/v1/portals").Handler(OpenPortalHTTPServer(e, options))
 	r.Methods("GET").Path("/api/v1/portals").Handler(ListPortalsHTTPServer(e, options))
-	r.Methods("GET").Path("/api/v1/portal/{id}").Handler(ViewPortalHTTPServer(e, options))
+	r.Methods("GET").Path("/api/v1/portals/{id}").Handler(ViewPortalHTTPServer(e, options))
 	r.Methods("POST").Path("/api/v1/portals/{id}/explore").Handler(ExplorePortalHTTPServer(e, options))
 
 	return r
@@ -106,6 +107,7 @@ func MakeHTTPClientEndpoints(instance string) (Endpoints, error) {
 
 		ViewCharacterEndpoint:          ViewCharacterHTTPClient(tgt, options),
 		ListCharactersEndpoint:         ListCharactersHTTPClient(tgt, options),
+		SpawnCharacterEndpoint:         SpawnCharacterHTTPClient(tgt, options),
 		ViewCharacterInventoryEndpoint: ViewCharacterInventoryHTTPClient(tgt, options),
 		DropCharacterItemEndpoint:      DropCharacterItemHTTPClient(tgt, options),
 		TakeCharacterItemEndpoint:      TakeCharacterItemHTTPClient(tgt, options),
@@ -429,14 +431,14 @@ func TakeCharacterItemHTTPServer(endpoints Endpoints, options []httptransport.Se
 
 // TakeCharacterItemHTTPClient calls the ViewCharacterEndpoint
 func TakeCharacterItemHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
-	return httptransport.NewClient("GET", tgt,
+	return httptransport.NewClient("POST", tgt,
 		func(ctx context.Context, req *http.Request, request interface{}) error {
 			dropReq, ok := request.(TakeCharacterItemRequest)
 			if !ok {
 				panic("Wrong request type")
 			}
 			req.URL.Path = fmt.Sprintf("/api/v1/characters/%s/take", dropReq.CharacterID)
-			return encodeRequest(ctx, req, req)
+			return encodeRequest(ctx, req, dropReq)
 		},
 		func(_ context.Context, resp *http.Response) (interface{}, error) {
 			var response TakeCharacterItemResponse
@@ -465,7 +467,7 @@ func MergeStonesHTTPServer(endpoints Endpoints, options []httptransport.ServerOp
 
 // MergeStonesHTTPClient calls the ViewCharacterEndpoint
 func MergeStonesHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
-	return httptransport.NewClient("GET", tgt,
+	return httptransport.NewClient("POST", tgt,
 		func(ctx context.Context, req *http.Request, request interface{}) error {
 			mergeReq, ok := request.(MergeStonesRequest)
 			if !ok {
@@ -476,6 +478,39 @@ func MergeStonesHTTPClient(tgt *url.URL, options []httptransport.ClientOption) e
 		},
 		func(_ context.Context, resp *http.Response) (interface{}, error) {
 			var response MergeStonesResponse
+			err := json.NewDecoder(resp.Body).Decode(&response)
+			return response, err
+		},
+		options...,
+	).Endpoint()
+}
+
+// SpawnCharacterHTTPServer serves the SpawnCharacterEndpoint
+func SpawnCharacterHTTPServer(endpoints Endpoints, options []httptransport.ServerOption) *httptransport.Server {
+	return httptransport.NewServer(endpoints.SpawnCharacterEndpoint,
+		func(_ context.Context, r *http.Request) (request interface{}, err error) {
+			var req SpawnCharacterRequest
+
+			return req, nil
+		},
+		encodeResponse,
+		options...,
+	)
+}
+
+// SpawnCharacterHTTPClient calls the ViewCharacterEndpoint
+func SpawnCharacterHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
+	return httptransport.NewClient("POST", tgt,
+		func(ctx context.Context, req *http.Request, request interface{}) error {
+			dropReq, ok := request.(SpawnCharacterRequest)
+			if !ok {
+				panic("Wrong request type")
+			}
+			req.URL.Path = "/api/v1/characters"
+			return encodeRequest(ctx, req, dropReq)
+		},
+		func(_ context.Context, resp *http.Response) (interface{}, error) {
+			var response SpawnCharacterResponse
 			err := json.NewDecoder(resp.Body).Decode(&response)
 			return response, err
 		},
@@ -507,7 +542,7 @@ func DropCharacterItemHTTPServer(endpoints Endpoints, options []httptransport.Se
 
 // DropCharacterItemHTTPClient calls the ViewCharacterEndpoint
 func DropCharacterItemHTTPClient(tgt *url.URL, options []httptransport.ClientOption) endpoint.Endpoint {
-	return httptransport.NewClient("GET", tgt,
+	return httptransport.NewClient("POST", tgt,
 		func(ctx context.Context, req *http.Request, request interface{}) error {
 			dropReq, ok := request.(DropCharacterItemRequest)
 			if !ok {

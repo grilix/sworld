@@ -78,6 +78,7 @@ func (c *Character) Die() {
 		bag.Empty()
 	}
 
+	c.Exploring = false
 	if c.User == nil {
 		log.Println(" --->  Character doe not have a user!")
 	}

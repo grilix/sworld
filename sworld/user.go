@@ -20,6 +20,16 @@ type User struct {
 	Gold       int
 }
 
+// HasAliveCharacters returns true if the user has alive characters
+func (u User) HasAliveCharacters() bool {
+	for _, character := range u.Characters {
+		if character.Health > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // PickupItem stores an item into the user inventory
 func (u *User) PickupItem(item Item) (ItemLocation, error) {
 	location, err := u.findEmptyBagSlot(item)

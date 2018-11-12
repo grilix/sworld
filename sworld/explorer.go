@@ -63,9 +63,6 @@ func (e *Explorer) Advance() *PortalEvent {
 
 	if cleared < e.position {
 		event = p.RandomEvent(e.position)
-		//p.portalMap = append(p.portalMap, event)
-	} else {
-		//event = p.portalMap[e.Position]
 	}
 
 	if event != nil {

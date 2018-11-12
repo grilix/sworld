@@ -18,7 +18,7 @@ func (s *swService) createUser(username string) (*sworld.User, error) {
 			Username: username,
 		},
 	}
-	s.createCharacter(user)
+	s.SpawnCharacter(user.u)
 	s.users[user.u.ID] = user
 	return user.u, nil
 }

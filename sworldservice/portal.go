@@ -23,6 +23,39 @@ func (s *swService) defaultStone(user *sworld.User) sworld.PortalStone {
 	}
 }
 
+func (s *swService) openPortal(user *sworld.User, stone sworld.PortalStone) (*sworld.Portal, error) {
+	portal, err := sworld.OpenPortal(user, stone, func(portal *sworld.Portal) {
+		log.Printf("Portal closed: %s\n", portal.ID)
+	})
+	if err != nil {
+		return portal, err
+	}
+	log.Printf("Portal open: %s\n", portal.ID)
+
+	userID := user.ID
+	// Close old portal(s)
+	// TODO: lock portal list
+	for id, portal := range s.portals {
+		if portal.p.IsOpen {
+			continue
+		}
+
+		if portal.p.User.ID == userID {
+			// This shouldn't be a problem for the iteration
+			delete(s.portals, id)
+		}
+	}
+	// TODO: unlock portal list
+
+	sportal := &sPortal{
+		p: portal,
+	}
+
+	s.portals[sportal.p.ID] = sportal
+
+	return portal, nil
+}
+
 func (s *swService) handleCharacterMove(exploration *sworld.Explorer) {
 	// TODO: Not sure what was this for
 	if exploration.Portal.C == nil {
@@ -39,8 +72,6 @@ func (s *swService) handleCharacterMove(exploration *sworld.Explorer) {
 			// FIXME: Handle this somewhere else
 			if exploration.Character.Health > 0 {
 				exploration.Character.ReturnToTown(exploration.Portal)
-			} else {
-				//
 			}
 		}()
 

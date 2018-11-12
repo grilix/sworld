@@ -32,6 +32,7 @@ type Endpoints struct {
 	ViewUserInventoryEndpoint endpoint.Endpoint
 	MergeStonesEndpoint       endpoint.Endpoint
 
+	SpawnCharacterEndpoint         endpoint.Endpoint
 	ViewCharacterEndpoint          endpoint.Endpoint
 	ListCharactersEndpoint         endpoint.Endpoint
 	ViewCharacterInventoryEndpoint endpoint.Endpoint
@@ -51,6 +52,7 @@ func MakeServerEndpoints(s svc.Service) Endpoints {
 		ViewUserInventoryEndpoint: authenticatedEndpoint(s, MakeViewUserInventoryEndpoint),
 		MergeStonesEndpoint:       authenticatedEndpoint(s, MakeMergeStonesEndpoint),
 
+		SpawnCharacterEndpoint:         authenticatedEndpoint(s, MakeSpawnCharacterEndpoint),
 		ViewCharacterEndpoint:          authenticatedEndpoint(s, MakeViewCharacterEndpoint),
 		ListCharactersEndpoint:         authenticatedEndpoint(s, MakeListCharactersEndpoint),
 		ViewCharacterInventoryEndpoint: authenticatedEndpoint(s, MakeViewCharacterInventoryEndpoint),
@@ -94,6 +96,30 @@ func MakeAuthenticateEndpoint(s svc.Service) endpoint.Endpoint {
 				Username: user.Username,
 			},
 			Token: tokenString,
+		}, nil
+	}
+}
+
+// MakeSpawnCharacterEndpoint creates the SpawnCharacter endopint
+func MakeSpawnCharacterEndpoint(s svc.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		user, ok := ctx.Value(ctxUserKey).(*sworld.User)
+		if !ok {
+			return SpawnCharacterResponse{}, ErrNoAccount
+		}
+
+		character, err := s.SpawnCharacter(user)
+		if err != nil {
+			return SpawnCharacterResponse{}, err
+		}
+
+		return SpawnCharacterResponse{
+			Character: &CharacterDetails{
+				ID:        character.ID,
+				Health:    character.Health,
+				MaxHealth: character.MaxHealth,
+				Exploring: character.Exploring,
+			},
 		}, nil
 	}
 }
@@ -255,16 +281,7 @@ func MakeListPortalsEndpoint(s svc.Service) endpoint.Endpoint {
 
 		portalsList := make([]*PortalDetails, 0, len(portals))
 		for _, portal := range portals {
-			portalsList = append(portalsList, &PortalDetails{
-				ID:       portal.ID,
-				Duration: int(portal.PortalStone.Duration.Seconds()),
-				TimeLeft: int(portal.TimeLeft().Seconds()),
-				Level:    portal.PortalStone.Level,
-				Zone: ZoneDetails{
-					ID:   portal.PortalStone.Zone.ID,
-					Name: portal.PortalStone.Zone.Name,
-				},
-			})
+			portalsList = append(portalsList, portalDetails(portal, true))
 		}
 
 		return ListPortalsResponse{
@@ -291,16 +308,7 @@ func MakeViewPortalEndpoint(s svc.Service) endpoint.Endpoint {
 		portal, err := s.ViewPortal(exploreReq.ID)
 
 		return ViewPortalResponse{
-			Portal: &PortalDetails{
-				ID:       portal.ID,
-				Duration: int(portal.PortalStone.Duration.Seconds()),
-				TimeLeft: int(portal.TimeLeft().Seconds()),
-				Level:    portal.PortalStone.Level,
-				Zone: ZoneDetails{
-					ID:   portal.PortalStone.Zone.ID,
-					Name: portal.PortalStone.Zone.Name,
-				},
-			},
+			Portal: portalDetails(portal, false),
 		}, err
 	}
 }
@@ -389,16 +397,7 @@ func MakeOpenPortalEndpoint(s svc.Service) endpoint.Endpoint {
 		}
 
 		return OpenPortalResponse{
-			Portal: &PortalDetails{
-				ID:       portal.ID,
-				Duration: int(portal.PortalStone.Duration.Seconds()),
-				TimeLeft: int(portal.TimeLeft().Seconds()),
-				Level:    portal.PortalStone.Level,
-				Zone: ZoneDetails{
-					ID:   portal.PortalStone.Zone.ID,
-					Name: portal.PortalStone.Zone.Name,
-				},
-			},
+			Portal: portalDetails(portal, false),
 		}, nil
 	}
 }

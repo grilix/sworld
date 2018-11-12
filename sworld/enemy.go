@@ -51,6 +51,7 @@ func (e *Enemy) ReceiveDamage(source Skill, amount int) int {
 	e.Health -= amount
 
 	if e.Health <= 0 {
+		e.Health = 0
 		close(e.D)
 	}
 	fmt.Printf("Enemy received %d damage, health is now %d\n", amount, e.Health)
@@ -113,8 +114,6 @@ func (e *Enemy) handleMove() {
 		defer func() {
 			// Cleanup sCharacter
 			moveTimer.Stop()
-			// FIXME: Handle this somewhere else
-			//exploration.Character.ReturnToTown(exploration.Portal)
 		}()
 
 		for {
